@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use crate::ui_language::UiLanguage;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Notification {
@@ -113,10 +114,12 @@ impl Default for NotificationTimeout {
 
 // Helper functions for creating common notifications
 impl Notification {
-    pub fn recording_started(meeting_name: Option<String>) -> Self {
+    pub fn recording_started(language: UiLanguage, meeting_name: Option<String>) -> Self {
         let body = match meeting_name {
-            Some(name) => format!("Recording started for meeting: {}", name),
-            None => "Recording has started. Please inform others in the meeting that you are recording.".to_string(),
+            Some(name) => language
+                .text("notification.recording_started")
+                .replace("{name}", &name),
+            None => language.text("notification.recording_started_generic").to_string(),
         };
 
         Notification::new("Meetily", body, NotificationType::RecordingStarted)
@@ -124,40 +127,42 @@ impl Notification {
             .with_timeout(NotificationTimeout::Seconds(5))
     }
 
-    pub fn recording_stopped() -> Self {
+    pub fn recording_stopped(language: UiLanguage) -> Self {
         Notification::new(
             "Meetily",
-            "Recording has been stopped and saved",
+            language.text("notification.recording_stopped"),
             NotificationType::RecordingStopped
         )
         .with_priority(NotificationPriority::Normal)
         .with_timeout(NotificationTimeout::Seconds(3))
     }
 
-    pub fn recording_paused() -> Self {
+    pub fn recording_paused(language: UiLanguage) -> Self {
         Notification::new(
             "Meetily",
-            "Recording has been paused",
+            language.text("notification.recording_paused"),
             NotificationType::RecordingPaused
         )
         .with_priority(NotificationPriority::Normal)
         .with_timeout(NotificationTimeout::Seconds(3))
     }
 
-    pub fn recording_resumed() -> Self {
+    pub fn recording_resumed(language: UiLanguage) -> Self {
         Notification::new(
             "Meetily",
-            "Recording has been resumed",
+            language.text("notification.recording_resumed"),
             NotificationType::RecordingResumed
         )
         .with_priority(NotificationPriority::Normal)
         .with_timeout(NotificationTimeout::Seconds(3))
     }
 
-    pub fn transcription_complete(file_path: Option<String>) -> Self {
+    pub fn transcription_complete(language: UiLanguage, file_path: Option<String>) -> Self {
         let body = match file_path {
-            Some(path) => format!("Transcription completed and saved to: {}", path),
-            None => "Transcription has been completed".to_string(),
+            Some(path) => language
+                .text("notification.transcription_complete")
+                .replace("{path}", &path),
+            None => language.text("notification.transcription_complete_generic").to_string(),
         };
 
         Notification::new("Meetily", body, NotificationType::TranscriptionComplete)
@@ -165,10 +170,19 @@ impl Notification {
             .with_timeout(NotificationTimeout::Seconds(5))
     }
 
-    pub fn meeting_reminder(minutes_until: u64, meeting_title: Option<String>) -> Self {
+    pub fn meeting_reminder(
+        language: UiLanguage,
+        minutes_until: u64,
+        meeting_title: Option<String>,
+    ) -> Self {
         let body = match meeting_title {
-            Some(title) => format!("Meeting '{}' starts in {} minutes", title, minutes_until),
-            None => format!("Meeting starts in {} minutes", minutes_until),
+            Some(title) => language
+                .text("notification.meeting_reminder")
+                .replace("{title}", &title)
+                .replace("{minutes}", &minutes_until.to_string()),
+            None => language
+                .text("notification.meeting_reminder_generic")
+                .replace("{minutes}", &minutes_until.to_string()),
         };
 
         Notification::new("Meetily", body, NotificationType::MeetingReminder(minutes_until))
@@ -176,10 +190,10 @@ impl Notification {
             .with_timeout(NotificationTimeout::Seconds(10))
     }
 
-    pub fn system_error(error: impl Into<String>) -> Self {
+    pub fn system_error(language: UiLanguage, error: impl Into<String>) -> Self {
         let error_string = error.into();
         Notification::new(
-            "Meetily Error",
+            language.text("notification.error_title"),
             error_string.clone(),
             NotificationType::SystemError(error_string)
         )
@@ -187,13 +201,34 @@ impl Notification {
         .with_timeout(NotificationTimeout::Never)
     }
 
-    pub fn test_notification() -> Self {
+    pub fn test_notification(language: UiLanguage) -> Self {
         Notification::new(
             "Meetily",
-            "This is a test notification to verify the system is working correctly",
+            language.text("notification.test"),
             NotificationType::Test
         )
         .with_priority(NotificationPriority::Normal)
         .with_timeout(NotificationTimeout::Seconds(5))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn localizes_dynamic_notification_text_without_changing_user_data() {
+        let notification = Notification::recording_started(
+            UiLanguage::SimplifiedChinese,
+            Some("Weekly Sync".to_string()),
+        );
+        assert_eq!(notification.body, "会议“Weekly Sync”已开始录音");
+
+        let error = Notification::system_error(
+            UiLanguage::SimplifiedChinese,
+            "backend detail",
+        );
+        assert_eq!(error.title, "Meetily 错误");
+        assert_eq!(error.body, "backend detail");
     }
 }

@@ -1,5 +1,6 @@
 'use client';
 
+import { t } from '@/i18n';
 import React, { useEffect, useState, useCallback } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { toast } from 'sonner';
@@ -88,9 +89,9 @@ function DownloadToastContent({
         {hasError ? (
           <p className="text-xs text-red-600">{download.error || 'Download failed'}</p>
         ) : isComplete ? (
-          <p className="text-xs text-green-600">Download complete</p>
+          <p className="text-xs text-green-600">{t("Download complete")}</p>
         ) : isCancelled ? (
-          <p className="text-xs text-gray-600">Download cancelled</p>
+          <p className="text-xs text-gray-600">{t("Download cancelled")}</p>
         ) : (
           <>
             {/* Progress bar */}
@@ -108,7 +109,7 @@ function DownloadToastContent({
               </span>
               <span className="flex items-center gap-1">
                 {download.speedMbps > 0 && (
-                  <span>{download.speedMbps.toFixed(1)} {unitLabel}/s</span>
+                  <span>{download.speedMbps.toFixed(1)} {unitLabel}{t("/s")}</span>
                 )}
                 <span className="text-gray-900 font-medium">
                   {Math.round(download.progress)}%

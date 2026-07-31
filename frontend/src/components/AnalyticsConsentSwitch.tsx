@@ -1,3 +1,4 @@
+import { t } from '@/i18n';
 import React, { useContext, useState, useEffect } from 'react';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
@@ -157,17 +158,16 @@ export default function AnalyticsConsentSwitch() {
     <>
       <div className="space-y-4">
         <div>
-          <h3 className="text-base font-semibold text-gray-800 mb-2">Usage Analytics</h3>
+          <h3 className="text-base font-semibold text-gray-800 mb-2">{t("Usage Analytics")}</h3>
           <p className="text-sm text-gray-600 mb-4">
-            Usage analytics is off by default. You can turn it on to share anonymous product and performance data; no personal content is collected.
-          </p>
+            {t("Usage analytics is off by default. You can turn it on to share anonymous product and performance data; no personal content is collected.")}</p>
         </div>
 
         <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
           <div>
-            <h4 className="font-semibold text-gray-800">Enable Analytics</h4>
+            <h4 className="font-semibold text-gray-800">{t("Enable Analytics")}</h4>
             <p className="text-sm text-gray-600">
-              {isProcessing ? 'Updating...' : 'Off unless you choose to enable it'}
+              {t(isProcessing ? 'Updating...' : 'Off unless you choose to enable it')}
             </p>
           </div>
           <div className="flex items-center gap-2 ml-4">
@@ -187,10 +187,9 @@ export default function AnalyticsConsentSwitch() {
           <div className="p-4 border rounded-lg bg-gray-50">
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1 min-w-0">
-                <div className="font-medium text-gray-800 mb-1">Your User ID</div>
+                <div className="font-medium text-gray-800 mb-1">{t("Your User ID")}</div>
                 <p className="text-xs text-gray-600 mb-2">
-                  Share this ID when reporting issues to help us investigate your issue logs
-                </p>
+                  {t("Share this ID when reporting issues to help us investigate your issue logs")}</p>
                 <div className="flex items-center gap-2">
                   <code className="text-xs text-gray-700 bg-white px-2 py-1 rounded border border-gray-300 font-mono flex-1 truncate">
                     {userId}
@@ -200,17 +199,17 @@ export default function AnalyticsConsentSwitch() {
                     variant="outline"
                     size="sm"
                     className="flex-shrink-0"
-                    title="Copy User ID"
+                    title={t("Copy User ID")}
                   >
                     {isCopied ? (
                       <>
                         <Check className="w-3.5 h-3.5 text-green-600" />
-                        <span className="text-green-600">Copied!</span>
+                        <span className="text-green-600">{t("Copied!")}</span>
                       </>
                     ) : (
                       <>
                         <Copy className="w-3.5 h-3.5" />
-                        <span>Copy</span>
+                        <span>{t("Copy")}</span>
                       </>
                     )}
                   </Button>
@@ -224,14 +223,12 @@ export default function AnalyticsConsentSwitch() {
           <Info className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
           <div className="text-xs text-blue-700">
             <p className="mb-1">
-              Your meetings, transcripts, and recordings remain completely private and local.
-            </p>
+              {t("Your meetings, transcripts, and recordings remain completely private and local.")}</p>
             <button
               onClick={handlePrivacyPolicyClick}
               className="text-blue-600 hover:text-blue-800 underline hover:no-underline"
             >
-              View Privacy Policy
-            </button>
+              {t("View Privacy Policy")}</button>
           </div>
         </div>
       </div>

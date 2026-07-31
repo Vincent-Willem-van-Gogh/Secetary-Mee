@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { ArrowLeft, Settings2, Mic, Database as DatabaseIcon, SparkleIcon, FlaskConical } from 'lucide-react';
+import { ArrowLeft, Settings2, Mic, Database as DatabaseIcon, SparkleIcon, FlaskConical, Languages } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { invoke } from '@tauri-apps/api/core';
 import { motion } from 'framer-motion';
@@ -12,24 +12,31 @@ import { SummaryModelSettings } from '@/components/SummaryModelSettings';
 import { BetaSettings } from '@/components/BetaSettings';
 import { useConfig } from '@/contexts/ConfigContext';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-
-// Tabs configuration (constant)
-const TABS = [
-  { value: 'general', label: 'General', icon: Settings2 },
-  { value: 'recording', label: 'Recordings', icon: Mic },
-  { value: 'Transcriptionmodels', label: 'Transcription', icon: DatabaseIcon },
-  { value: 'summaryModels', label: 'Summary', icon: SparkleIcon },
-  { value: 'beta', label: 'Beta', icon: FlaskConical }
-] as const;
+import { SystemSettings } from '@/components/SystemSettings';
+import { useI18n } from '@/i18n';
 
 export default function SettingsPage() {
   const router = useRouter();
   const { transcriptModelConfig, setTranscriptModelConfig } = useConfig();
+  const { language, t } = useI18n();
+  const tabs = [
+    { value: 'system', label: t('System'), icon: Languages },
+    { value: 'general', label: t('General'), icon: Settings2 },
+    { value: 'recording', label: t('Recordings'), icon: Mic },
+    { value: 'Transcriptionmodels', label: t('Transcription'), icon: DatabaseIcon },
+    { value: 'summaryModels', label: t('Summary'), icon: SparkleIcon },
+    { value: 'beta', label: t('Beta'), icon: FlaskConical }
+  ] as const;
 
   // Animation state for tabs
-  const [activeTab, setActiveTab] = useState('general');
+  const [activeTab, setActiveTab] = useState('system');
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const [underlineStyle, setUnderlineStyle] = useState({ left: 0, width: 0 });
+
+  useEffect(() => {
+    const requestedTab = new URLSearchParams(window.location.search).get('tab');
+    if (tabs.some(tab => tab.value === requestedTab)) setActiveTab(requestedTab!);
+  }, []);
 
   // Load saved transcript configuration on mount
   useEffect(() => {
@@ -53,14 +60,14 @@ export default function SettingsPage() {
 
   // Update underline position when active tab changes
   useLayoutEffect(() => {
-    const activeIndex = TABS.findIndex(tab => tab.value === activeTab);
+    const activeIndex = tabs.findIndex(tab => tab.value === activeTab);
     const activeTabElement = tabRefs.current[activeIndex];
 
     if (activeTabElement) {
       const { offsetLeft, offsetWidth } = activeTabElement;
       setUnderlineStyle({ left: offsetLeft, width: offsetWidth });
     }
-  }, [activeTab]);
+  }, [activeTab, language]);
 
   return (
     <div className="h-screen bg-gray-50 flex flex-col">
@@ -73,9 +80,9 @@ export default function SettingsPage() {
               className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
             >
               <ArrowLeft className="w-5 h-5" />
-              <span>Back</span>
+              <span>{t('Back')}</span>
             </button>
-            <h1 className="text-3xl font-bold">Settings</h1>
+            <h1 className="text-3xl font-bold">{t('Settings')}</h1>
           </div>
         </div>
       </div>
@@ -86,7 +93,7 @@ export default function SettingsPage() {
           {/* Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="bg-transparent relative rounded-none border-b border-gray-200 p-0 h-auto">
-              {TABS.map((tab, index) => {
+              {tabs.map((tab, index) => {
                 const Icon = tab.icon;
                 return (
                   <TabsTrigger
@@ -109,6 +116,9 @@ export default function SettingsPage() {
               />
             </TabsList>
 
+            <TabsContent value="system">
+              <SystemSettings />
+            </TabsContent>
             <TabsContent value="general">
               <PreferenceSettings />
             </TabsContent>

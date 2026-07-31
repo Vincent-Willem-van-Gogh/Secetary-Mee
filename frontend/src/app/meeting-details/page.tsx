@@ -1,4 +1,5 @@
 "use client"
+import { t } from '@/i18n';
 import { useSidebar } from "@/components/Sidebar/SidebarProvider";
 import { useState, useEffect, useCallback, Suspense } from "react";
 import { Transcript, Summary } from "@/types";
@@ -344,8 +345,7 @@ function MeetingDetailsContent() {
             onClick={() => router.push('/')}
             className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
           >
-            Go Back
-          </button>
+            {t("Go Back")}</button>
         </div>
       </div>
     );

@@ -37,6 +37,10 @@ function convertTranscriptsToSegments(transcripts: Transcript[]): TranscriptSegm
         endTime: t.audio_end_time,
         text: t.text,
         confidence: t.confidence,
+        translation_zh_cn: t.translation_zh_cn,
+        translation_provider: t.translation_provider,
+        translation_model: t.translation_model,
+        translation_status: t.translation_zh_cn ? 'complete' : 'pending',
     }));
 }
 

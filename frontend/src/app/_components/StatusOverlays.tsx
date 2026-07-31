@@ -47,16 +47,17 @@ export function StatusOverlays({
       {/* Processing status overlay - shown after recording stops while finalizing transcription */}
       <StatusOverlay
         show={isProcessing}
-        message="Finalizing transcription..."
+        message={t("Finalizing transcription...")}
         sidebarCollapsed={sidebarCollapsed}
       />
 
       {/* Saving status overlay - shown while saving transcript to database */}
       <StatusOverlay
         show={isSaving}
-        message="Saving transcript..."
+        message={t("Saving transcript...")}
         sidebarCollapsed={sidebarCollapsed}
       />
     </>
   );
 }
+import { t } from '@/i18n';

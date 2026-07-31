@@ -1,4 +1,5 @@
 "use client";
+import { t } from '@/i18n';
 import { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -72,13 +73,10 @@ export function BluetoothPlaybackWarning({
       <div className="flex items-start justify-between w-full">
         <div className="flex-1">
           <AlertTitle className="text-yellow-900 font-semibold">
-            Bluetooth Playback Detected
-          </AlertTitle>
+            {t("Bluetooth Playback Detected")}</AlertTitle>
           <AlertDescription className="text-yellow-800 mt-1">
-            You're using <strong>{deviceName}</strong> for playback.
-            Recordings may sound distorted or sped up through Bluetooth devices.
-            For accurate review, please use <strong>computer speakers</strong> or{' '}
-            <strong>wired headphones</strong>.
+            {t("You're using")}<strong>{deviceName}</strong> {t("for playback. Recordings may sound distorted or sped up through Bluetooth devices. For accurate review, please use")}<strong>{t("computer speakers")}</strong> {t("or")}{' '}
+            <strong>{t("wired headphones")}</strong>.
             <br />
             <a
               href="https://github.com/your-org/meetily/blob/main/BLUETOOTH_PLAYBACK_NOTICE.md"
@@ -86,8 +84,7 @@ export function BluetoothPlaybackWarning({
               rel="noopener noreferrer"
               className="underline hover:text-yellow-900 font-medium mt-2 inline-block"
             >
-              Learn why this happens →
-            </a>
+              {t("Learn why this happens →")}</a>
           </AlertDescription>
         </div>
         <Button
@@ -95,7 +92,7 @@ export function BluetoothPlaybackWarning({
           size="icon"
           onClick={() => setIsDismissed(true)}
           className="ml-4 h-6 w-6 text-yellow-700 hover:text-yellow-900 hover:bg-yellow-100"
-          aria-label="Dismiss warning"
+          aria-label={t("Dismiss warning")}
         >
           <X className="h-4 w-4" />
         </Button>

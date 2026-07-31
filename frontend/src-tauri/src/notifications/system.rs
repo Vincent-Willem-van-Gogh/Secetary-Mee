@@ -1,7 +1,8 @@
 use crate::notifications::types::{Notification, NotificationPriority, NotificationTimeout};
 use anyhow::{Result, anyhow};
 use log::{info as log_info, error as log_error};
-use tauri::{AppHandle, Runtime};
+use tauri::{AppHandle, Manager, Runtime};
+use crate::ui_language::UiLanguageState;
 use tauri_plugin_notification::NotificationExt;
 use std::time::Duration;
 
@@ -75,7 +76,8 @@ impl<R: Runtime> SystemNotificationHandler<R> {
     /// Show a test notification to verify the system is working
     #[allow(dead_code)] // Used by show_test_notification command for manual testing
     async fn show_test_notification(&self) -> Result<()> {
-        let test_notification = Notification::test_notification();
+        let language = self.app_handle.state::<UiLanguageState>().get();
+        let test_notification = Notification::test_notification(language);
         self.show_notification(test_notification).await
     }
 

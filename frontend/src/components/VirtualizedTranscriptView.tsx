@@ -1,5 +1,6 @@
 'use client';
 
+import { t } from '@/i18n';
 import { useCallback, useRef, useReducer, startTransition, useEffect, useState, memo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useAutoScroll } from "@/hooks/useAutoScroll";
@@ -9,6 +10,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { RecordingStatusBar } from "./RecordingStatusBar";
 import { motion, AnimatePresence } from "framer-motion";
 import { TranscriptSegmentData } from "@/types";
+import { RefreshCw } from "lucide-react";
 
 export interface VirtualizedTranscriptViewProps {
     /** Transcript segments to display */
@@ -34,6 +36,9 @@ export interface VirtualizedTranscriptViewProps {
     totalCount?: number;
     loadedCount?: number;
     onLoadMore?: () => void;
+    showTranslation?: boolean;
+    translationLayout?: 'columns' | 'stacked';
+    onRetryTranslation?: (segment: TranscriptSegmentData) => void;
 }
 
 // Threshold for enabling virtualization (below this, use simple rendering)
@@ -71,6 +76,11 @@ const TranscriptSegment = memo(function TranscriptSegment({
     confidence,
     isStreaming,
     showConfidence,
+    showTranslation,
+    translationLayout,
+    translation,
+    translationStatus,
+    onRetryTranslation,
 }: {
     id: string;
     timestamp: number;
@@ -78,12 +88,21 @@ const TranscriptSegment = memo(function TranscriptSegment({
     confidence?: number;
     isStreaming: boolean;
     showConfidence: boolean;
+    showTranslation: boolean;
+    translationLayout: 'columns' | 'stacked';
+    translation?: string;
+    translationStatus?: TranscriptSegmentData['translation_status'];
+    onRetryTranslation?: () => void;
 }) {
     const displayText = cleanStopWords(text) || (text.trim() === '' ? '[Silence]' : text);
+    const isStacked = showTranslation && translationLayout === 'stacked';
 
     return (
-        <div id={`segment-${id}`} className="mb-3">
-            <div className="flex items-start gap-2">
+        <div
+            id={`segment-${id}`}
+            className={`mb-3 ${showTranslation && !isStacked ? 'grid grid-cols-2 gap-0' : ''} ${isStacked ? 'border-b border-gray-100 pb-3' : ''}`}
+        >
+            <div className={`flex items-start gap-2 min-w-0 ${showTranslation && !isStacked ? 'pr-4 border-r border-gray-200' : ''}`}>
                 <Tooltip>
                     <TooltipTrigger>
                         <span className="text-xs text-gray-400 mt-1 flex-shrink-0 min-w-[50px]">
@@ -106,6 +125,44 @@ const TranscriptSegment = memo(function TranscriptSegment({
                     )}
                 </div>
             </div>
+            <AnimatePresence initial={false}>
+                {showTranslation && (
+                    <motion.div
+                        initial={isStacked ? { opacity: 0, y: 4 } : { opacity: 0, x: 20 }}
+                        animate={isStacked ? { opacity: 1, y: 0 } : { opacity: 1, x: 0 }}
+                        exit={isStacked ? { opacity: 0, y: 4 } : { opacity: 0, x: 20 }}
+                        transition={{ duration: 0.22 }}
+                        className={isStacked
+                            ? 'ml-[58px] mt-2 min-w-0 rounded-lg border border-blue-100 bg-blue-50/60 px-3 py-2'
+                            : 'flex items-start gap-2 min-w-0 pl-4'}
+                    >
+                        {!isStacked && (
+                            <span className="text-xs text-gray-400 mt-1 flex-shrink-0 min-w-[50px]">
+                                {formatRecordingTime(timestamp)}
+                            </span>
+                        )}
+                        <div className="flex-1 min-w-0">
+                            {translation ? (
+                                <p className={`text-base leading-relaxed ${isStacked ? 'text-gray-700' : 'text-gray-800'}`}>{translation}</p>
+                            ) : translationStatus === 'error' || translationStatus === 'pending' ? (
+                                <button
+                                    type="button"
+                                    onClick={onRetryTranslation}
+                                    className="inline-flex items-center gap-1.5 text-sm text-red-600 hover:text-red-700"
+                                >
+                                    <RefreshCw className="h-3.5 w-3.5" />
+                                    {translationStatus === 'error' ? t('Translation failed. Retry') : t('Not translated. Retry')}
+                                </button>
+                            ) : (
+                                <div className="space-y-2 py-1" aria-label={t('Translating')}>
+                                    <div className="h-3 w-full rounded bg-gray-200 animate-pulse" />
+                                    <div className="h-3 w-2/3 rounded bg-gray-100 animate-pulse" />
+                                </div>
+                            )}
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 });
@@ -124,6 +181,9 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
     totalCount = 0,
     loadedCount = 0,
     onLoadMore,
+    showTranslation = false,
+    translationLayout = 'columns',
+    onRetryTranslation,
 }) => {
     // Create scroll ref first - shared between virtualizer and auto-scroll hook
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -257,8 +317,8 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                         </>
                     ) : (
                         <>
-                            <p className="text-lg font-semibold">Welcome to meetily!</p>
-                            <p className="text-xs mt-1">Start recording to see live transcription</p>
+                            <p className="text-lg font-semibold">{t("Welcome to meetily!")}</p>
+                            <p className="text-xs mt-1">{t("Start recording to see live transcription")}</p>
                         </>
                     )}
                 </motion.div>
@@ -296,6 +356,11 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                                         confidence={segment.confidence}
                                         isStreaming={isStreaming}
                                         showConfidence={showConfidence}
+                                        showTranslation={showTranslation}
+                                        translationLayout={translationLayout}
+                                        translation={segment.translation_zh_cn}
+                                        translationStatus={segment.translation_status}
+                                        onRetryTranslation={() => onRetryTranslation?.(segment)}
                                     />
                                 </div>
                             );
@@ -308,12 +373,11 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                             {isLoadingMore ? (
                                 <div className="flex items-center gap-2 text-gray-500">
                                     <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
-                                    <span className="text-sm">Loading more...</span>
+                                    <span className="text-sm">{t("Loading more...")}</span>
                                 </div>
                             ) : hasMore && totalCount > 0 ? (
                                 <span className="text-sm text-gray-400">
-                                    Showing {loadedCount} of {totalCount} segments
-                                </span>
+                                    {t("Showing")}{loadedCount} {t("of")}{totalCount} {t("segments")}</span>
                             ) : null}
                         </div>
                     )}
@@ -327,7 +391,7 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                             className="flex items-center gap-2 mt-4 text-gray-500"
                         >
                             <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-                            <span className="text-sm">Listening...</span>
+                            <span className="text-sm">{t("Listening...")}</span>
                         </motion.div>
                     )}
                 </>
@@ -352,6 +416,11 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                                         confidence={segment.confidence}
                                         isStreaming={isStreaming}
                                         showConfidence={showConfidence}
+                                        showTranslation={showTranslation}
+                                        translationLayout={translationLayout}
+                                        translation={segment.translation_zh_cn}
+                                        translationStatus={segment.translation_status}
+                                        onRetryTranslation={() => onRetryTranslation?.(segment)}
                                     />
                                 </motion.div>
                             );
@@ -364,12 +433,11 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                             {isLoadingMore ? (
                                 <div className="flex items-center gap-2 text-gray-500">
                                     <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
-                                    <span className="text-sm">Loading more...</span>
+                                    <span className="text-sm">{t("Loading more...")}</span>
                                 </div>
                             ) : hasMore && totalCount > 0 ? (
                                 <span className="text-sm text-gray-400">
-                                    Showing {loadedCount} of {totalCount} segments
-                                </span>
+                                    {t("Showing")}{loadedCount} {t("of")}{totalCount} {t("segments")}</span>
                             ) : null}
                         </div>
                     )}
@@ -383,7 +451,7 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                             className="flex items-center gap-2 mt-4 text-gray-500"
                         >
                             <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-                            <span className="text-sm">Listening...</span>
+                            <span className="text-sm">{t("Listening...")}</span>
                         </motion.div>
                     )}
                 </>

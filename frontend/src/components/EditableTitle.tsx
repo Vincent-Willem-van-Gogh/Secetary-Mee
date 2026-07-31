@@ -1,5 +1,6 @@
 'use client';
 
+import { t } from '@/i18n';
 import { useRef, useEffect } from 'react';
 
 interface EditableTitleProps {
@@ -67,7 +68,7 @@ export const EditableTitle: React.FC<EditableTitleProps> = ({
         <button 
           onClick={onStartEditing}
           className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 p-1 hover:bg-gray-100 rounded"
-          title="Edit section title"
+          title={t("Edit section title")}
         >
           <svg 
             xmlns="http://www.w3.org/2000/svg" 
@@ -87,7 +88,7 @@ export const EditableTitle: React.FC<EditableTitleProps> = ({
           <button 
             onClick={onDelete}
             className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 p-1 hover:bg-gray-100 rounded text-red-600"
-            title="Delete section"
+            title={t("Delete section")}
           >
             <svg 
               xmlns="http://www.w3.org/2000/svg" 

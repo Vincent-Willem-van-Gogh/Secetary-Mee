@@ -1,5 +1,6 @@
 'use client';
 
+import { t } from '@/i18n';
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback, ReactNode, MutableRefObject } from 'react';
 import { Transcript, TranscriptUpdate } from '@/types';
 import { toast } from 'sonner';
@@ -7,12 +8,16 @@ import { useRecordingState } from './RecordingStateContext';
 import { transcriptService } from '@/services/transcriptService';
 import { recordingService } from '@/services/recordingService';
 import { indexedDBService } from '@/services/indexedDBService';
+import { invoke } from '@tauri-apps/api/core';
 
 interface TranscriptContextType {
   transcripts: Transcript[];
   transcriptsRef: MutableRefObject<Transcript[]>
   addTranscript: (update: TranscriptUpdate) => void;
   copyTranscript: () => void;
+  copyTranslation: () => void;
+  retryTranslation: (transcriptId: string) => Promise<void>;
+  waitForTranslations: (timeoutMs: number) => Promise<number>;
   flushBuffer: () => void;
   transcriptContainerRef: React.RefObject<HTMLDivElement>;
   meetingTitle: string;
@@ -37,11 +42,76 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
   const isUserAtBottomRef = useRef<boolean>(true);
   const transcriptContainerRef = useRef<HTMLDivElement>(null);
   const finalFlushRef = useRef<(() => void) | null>(null);
+  const translationTasksRef = useRef(new Map<string, Promise<void>>());
 
   // Keep ref updated with current transcripts
   useEffect(() => {
     transcriptsRef.current = transcripts;
   }, [transcripts]);
+
+  const updateTranscript = useCallback((id: string, patch: Partial<Transcript>) => {
+    setTranscripts(prev => {
+      const next = prev.map(item => item.id === id ? { ...item, ...patch } : item);
+      transcriptsRef.current = next;
+      return next;
+    });
+  }, []);
+
+  const runTranslation = useCallback(async (transcript: Transcript, force = false) => {
+    if (transcript.is_partial || (!force && (transcript.translation_zh_cn || translationTasksRef.current.has(transcript.id)))) {
+      return;
+    }
+
+    updateTranscript(transcript.id, { translation_status: 'translating' });
+    const task = invoke<{
+      translation: string;
+      provider: string;
+      model: string;
+    }>('translate_transcript_text', { text: transcript.text })
+      .then(result => {
+        updateTranscript(transcript.id, {
+          translation_zh_cn: result.translation,
+          translation_provider: result.provider,
+          translation_model: result.model,
+          translation_status: 'complete',
+        });
+      })
+      .catch(error => {
+        console.warn('Translation failed for transcript segment:', transcript.id, String(error));
+        updateTranscript(transcript.id, { translation_status: 'error' });
+      })
+      .finally(() => {
+        translationTasksRef.current.delete(transcript.id);
+      });
+
+    translationTasksRef.current.set(transcript.id, task);
+    await task;
+  }, [updateTranscript]);
+
+  useEffect(() => {
+    transcripts.forEach(transcript => {
+      if (!transcript.is_partial && !transcript.translation_zh_cn && transcript.translation_status !== 'error') {
+        void runTranslation(transcript);
+      }
+    });
+  }, [transcripts, runTranslation]);
+
+  const retryTranslation = useCallback(async (transcriptId: string) => {
+    const transcript = transcriptsRef.current.find(item => item.id === transcriptId);
+    if (transcript) await runTranslation(transcript, true);
+  }, [runTranslation]);
+
+  const waitForTranslations = useCallback(async (timeoutMs: number) => {
+    const deadline = Date.now() + timeoutMs;
+    while (translationTasksRef.current.size > 0 && Date.now() < deadline) {
+      const remaining = deadline - Date.now();
+      await Promise.race([
+        Promise.allSettled([...translationTasksRef.current.values()]),
+        new Promise(resolve => setTimeout(resolve, remaining)),
+      ]);
+    }
+    return transcriptsRef.current.filter(item => !item.translation_zh_cn).length;
+  }, []);
 
   // Smart auto-scroll: Track user scroll position
   useEffect(() => {
@@ -338,7 +408,7 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
         console.log('✅ MAIN transcript listener setup complete');
       } catch (error) {
         console.error('❌ Failed to setup MAIN transcript listener:', error);
-        alert('Failed to setup transcript listener. Check console for details.');
+        alert(t('Failed to setup transcript listener. Check console for details.'));
       }
     };
 
@@ -469,7 +539,16 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
       .join('\n');
     navigator.clipboard.writeText(fullTranscript);
 
-    toast.success("Transcript copied to clipboard");
+    toast.success(t("Transcript copied to clipboard"));
+  }, [transcripts]);
+
+  const copyTranslation = useCallback(() => {
+    const translated = transcripts
+      .filter(item => item.translation_zh_cn)
+      .map(item => item.translation_zh_cn)
+      .join('\n');
+    navigator.clipboard.writeText(translated);
+    toast.success(t("Chinese translation copied to clipboard"));
   }, [transcripts]);
 
   // Force flush buffer (for final transcript processing)
@@ -514,6 +593,9 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
     transcriptsRef,
     addTranscript,
     copyTranscript,
+    copyTranslation,
+    retryTranslation,
+    waitForTranslations,
     flushBuffer,
     transcriptContainerRef,
     meetingTitle,

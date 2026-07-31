@@ -137,6 +137,12 @@ pub struct MeetingTranscript {
     pub audio_end_time: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub duration: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub translation_zh_cn: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub translation_provider: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub translation_model: Option<String>,
 }
 
 /// Meeting metadata without transcripts (for pagination)
@@ -188,6 +194,12 @@ pub struct TranscriptSegment {
     pub audio_end_time: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub duration: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub translation_zh_cn: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub translation_provider: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub translation_model: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -878,6 +890,9 @@ pub async fn api_get_meeting_transcripts<R: Runtime>(
                     audio_start_time: t.audio_start_time,
                     audio_end_time: t.audio_end_time,
                     duration: t.duration,
+                    translation_zh_cn: t.translation_zh_cn,
+                    translation_provider: t.translation_provider,
+                    translation_model: t.translation_model,
                 })
                 .collect::<Vec<_>>();
 
@@ -943,14 +958,6 @@ pub async fn api_save_transcript<R: Runtime>(
         auth_token.is_some()
     );
 
-    // Log first transcript for debugging
-    if let Some(first) = transcripts.first() {
-        log_debug!(
-            "First transcript data: {}",
-            serde_json::to_string_pretty(first).unwrap_or_default()
-        );
-    }
-
     // Convert serde_json::Value to TranscriptSegment
     let transcripts_to_save: Vec<TranscriptSegment> = transcripts
         .into_iter()
@@ -960,15 +967,6 @@ pub async fn api_save_transcript<R: Runtime>(
             log_error!("Failed to parse transcript segments: {}", e);
             format!("Invalid transcript data format: {}. Please check the data structure.", e)
         })?;
-
-    // Log parsed segments count and first segment details
-    if let Some(first_seg) = transcripts_to_save.first() {
-        log_debug!("First parsed segment: text='{}', audio_start_time={:?}, audio_end_time={:?}, duration={:?}",
-                   first_seg.text.chars().take(50).collect::<String>(),
-                   first_seg.audio_start_time,
-                   first_seg.audio_end_time,
-                   first_seg.duration);
-    }
 
     let pool = state.db_manager.pool();
 

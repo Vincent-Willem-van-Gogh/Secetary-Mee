@@ -1,5 +1,6 @@
 'use client';
 
+import { t } from '@/i18n';
 import { motion } from 'framer-motion';
 import { FileQuestion, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -26,11 +27,9 @@ export function EmptyStateSummary({ onGenerate, hasModel, isGenerating = false }
     >
       <FileQuestion className="w-16 h-16 text-gray-300 mb-4" />
       <h3 className="text-lg font-semibold text-gray-900 mb-2">
-        No Summary Generated Yet
-      </h3>
+        {t("No Summary Generated Yet")}</h3>
       <p className="text-sm text-gray-500 mb-6 max-w-md">
-        Generate an AI-powered summary of your meeting transcript to get key points, action items, and decisions.
-      </p>
+        {t("Generate an AI-powered summary of your meeting transcript to get key points, action items, and decisions.")}</p>
 
       <TooltipProvider>
         <Tooltip>
@@ -48,7 +47,7 @@ export function EmptyStateSummary({ onGenerate, hasModel, isGenerating = false }
           </TooltipTrigger>
           {!hasModel && (
             <TooltipContent>
-              <p>Please select a model in Settings first</p>
+              <p>{t("Please select a model in Settings first")}</p>
             </TooltipContent>
           )}
         </Tooltip>
@@ -56,8 +55,7 @@ export function EmptyStateSummary({ onGenerate, hasModel, isGenerating = false }
 
       {!hasModel && (
         <p className="text-xs text-amber-600 mt-3">
-          Please select a model in Settings first
-        </p>
+          {t("Please select a model in Settings first")}</p>
       )}
     </motion.div>
   );

@@ -1,3 +1,4 @@
+import { t } from '@/i18n';
 import { useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Button } from '@/components/ui/button';
@@ -59,8 +60,7 @@ export function ConsoleToggle() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <Label htmlFor="console-toggle">
-          Developer Console
-        </Label>
+          {t("Developer Console")}</Label>
         <Switch
           id="console-toggle"
           checked={consoleVisible}
@@ -81,12 +81,10 @@ export function ConsoleToggle() {
           onClick={handleToggleConsole}
           disabled={isLoading}
         >
-          Toggle Console
-        </Button>
+          {t("Toggle Console")}</Button>
       </div>
       <p className="text-sm text-muted-foreground">
-        Show or hide the developer console window. On Windows, this controls the console window. On macOS, this opens Terminal with app logs.
-      </p>
+        {t("Show or hide the developer console window. On Windows, this controls the console window. On macOS, this opens Terminal with app logs.")}</p>
     </div>
   );
 }

@@ -1,3 +1,4 @@
+import { t } from '@/i18n';
 import React from "react";
 import Image from "next/image";
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "./ui/dialog";
@@ -14,19 +15,19 @@ const Logo = React.forwardRef<HTMLButtonElement, LogoProps>(({ isCollapsed }, re
       {isCollapsed ? (
         <DialogTrigger asChild>
           <button ref={ref} className="flex items-center justify-start mb-2 cursor-pointer bg-transparent border-none p-0 hover:opacity-80 transition-opacity">
-            <Image src="/logo-collapsed.png" alt="Logo" width={40} height={32} />
+            <Image src="/logo-collapsed.png" alt={t("Logo")} width={40} height={32} />
           </button>
         </DialogTrigger>
       ) : (
         <DialogTrigger asChild>
           <span className="text-lg text-center border rounded-full bg-blue-50 border-white font-semibold text-gray-700 mb-2 block items-center cursor-pointer hover:opacity-80 transition-opacity">
-            <span>Meetily</span>
+            <span>{t("Meetily")}</span>
           </span>
         </DialogTrigger>
       )}
       <DialogContent>
         <VisuallyHidden>
-          <DialogTitle>About Meetily</DialogTitle>
+          <DialogTitle>{t("About Meetily")}</DialogTitle>
         </VisuallyHidden>
         <About />
       </DialogContent>

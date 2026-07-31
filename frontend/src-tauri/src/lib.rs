@@ -52,6 +52,8 @@ pub mod parakeet_engine;
 pub mod state;
 pub mod summary;
 pub mod tray;
+pub mod translation;
+pub mod ui_language;
 pub mod utils;
 pub mod whisper_engine;
 
@@ -414,9 +416,12 @@ pub fn run() {
             None::<notifications::manager::NotificationManager<tauri::Wry>>,
         )) as NotificationManagerState<tauri::Wry>)
         .manage(audio::init_system_audio_state())
+        .manage(ui_language::UiLanguageState::default())
         .manage(summary::summary_engine::ModelManagerState(Arc::new(tokio::sync::Mutex::new(None))))
         .setup(|_app| {
             log::info!("Application setup complete");
+
+            ui_language::initialize(_app.handle());
 
             // Initialize system tray
             if let Err(e) = tray::create_tray(_app.handle()) {
@@ -690,6 +695,16 @@ pub fn run() {
             audio::recording_preferences::get_audio_backend_info,
             // Language preference commands
             set_language_preference,
+            // Interface language commands
+            ui_language::get_ui_language,
+            ui_language::set_ui_language,
+            translation::get_translation_settings,
+            translation::save_translation_settings,
+            translation::test_translation_settings,
+            translation::list_groq_translation_models,
+            translation::probe_translation_model,
+            translation::translate_transcript_text,
+            translation::update_transcript_translation,
             // Notification system commands
             notifications::commands::get_notification_settings,
             notifications::commands::set_notification_settings,

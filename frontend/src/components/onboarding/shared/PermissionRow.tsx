@@ -1,3 +1,4 @@
+import { t } from '@/i18n';
 import React from 'react';
 import { CheckCircle2, Loader2, XCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -42,13 +43,11 @@ export function PermissionRow({ icon, title, description, status, isPending = fa
             {isAuthorized ? (
               <span className="text-green-600 flex items-center gap-1">
                 <CheckCircle2 className="w-3.5 h-3.5" />
-                Access Granted
-              </span>
+                {t("Access Granted")}</span>
             ) : isDenied ? (
               <span className="text-red-500 flex items-center gap-1">
                 <XCircle className="w-3.5 h-3.5" />
-                Access Denied - Please grant in System Settings
-              </span>
+                {t("Access Denied - Please grant in System Settings")}</span>
             ) : (
               <span>{description}</span>
             )}

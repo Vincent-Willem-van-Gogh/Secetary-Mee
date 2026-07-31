@@ -1,3 +1,4 @@
+import { t } from '@/i18n';
 import React from 'react';
 import { Lock, Sparkles, Cpu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -24,7 +25,7 @@ export function WelcomeStep() {
 
   return (
     <OnboardingContainer
-      title="Welcome to Meetily"
+      title={t("Welcome to Meetily")}
       description="Record. Transcribe. Summarize. All on your device."
       step={1}
       hideProgress={true}
@@ -56,9 +57,8 @@ export function WelcomeStep() {
             onClick={goNext}
             className="w-full h-11 bg-gray-900 hover:bg-gray-800 text-white"
           >
-            Get Started
-          </Button>
-          <p className="text-xs text-center text-gray-500">Takes less than 3 minutes</p>
+            {t("Get Started")}</Button>
+          <p className="text-xs text-center text-gray-500">{t("Takes less than 3 minutes")}</p>
         </div>
       </div>
     </OnboardingContainer>

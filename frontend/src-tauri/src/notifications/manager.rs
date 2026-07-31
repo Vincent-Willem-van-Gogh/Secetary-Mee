@@ -3,9 +3,10 @@ use crate::notifications::{
     settings::{NotificationSettings, ConsentManager},
     system::SystemNotificationHandler,
 };
+use crate::ui_language::{UiLanguage, UiLanguageState};
 use anyhow::Result;
 use log::{info as log_info, error as log_error, warn as log_warn};
-use tauri::{AppHandle, Runtime};
+use tauri::{AppHandle, Manager, Runtime};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -20,6 +21,10 @@ pub struct NotificationManager<R: Runtime> {
 }
 
 impl<R: Runtime> NotificationManager<R> {
+    fn language(&self) -> UiLanguage {
+        self.app_handle.state::<UiLanguageState>().get()
+    }
+
     /// Create a new notification manager
     pub async fn new(app_handle: AppHandle<R>) -> Result<Self> {
         let system_handler = Arc::new(SystemNotificationHandler::new(app_handle.clone()));
@@ -108,7 +113,7 @@ impl<R: Runtime> NotificationManager<R> {
         }
 
         log_info!("✅ Recording started notification is enabled, showing notification");
-        let notification = Notification::recording_started(meeting_name);
+        let notification = Notification::recording_started(self.language(), meeting_name);
         self.show_notification(notification).await
     }
 
@@ -119,7 +124,7 @@ impl<R: Runtime> NotificationManager<R> {
             return Ok(());
         }
 
-        let notification = Notification::recording_stopped();
+        let notification = Notification::recording_stopped(self.language());
         self.show_notification(notification).await
     }
 
@@ -130,7 +135,7 @@ impl<R: Runtime> NotificationManager<R> {
             return Ok(());
         }
 
-        let notification = Notification::recording_paused();
+        let notification = Notification::recording_paused(self.language());
         self.show_notification(notification).await
     }
 
@@ -141,7 +146,7 @@ impl<R: Runtime> NotificationManager<R> {
             return Ok(());
         }
 
-        let notification = Notification::recording_resumed();
+        let notification = Notification::recording_resumed(self.language());
         self.show_notification(notification).await
     }
 
@@ -152,7 +157,7 @@ impl<R: Runtime> NotificationManager<R> {
             return Ok(());
         }
 
-        let notification = Notification::transcription_complete(file_path);
+        let notification = Notification::transcription_complete(self.language(), file_path);
         self.show_notification(notification).await
     }
 
@@ -168,7 +173,7 @@ impl<R: Runtime> NotificationManager<R> {
             return Ok(());
         }
 
-        let notification = Notification::meeting_reminder(minutes_until, meeting_title);
+        let notification = Notification::meeting_reminder(self.language(), minutes_until, meeting_title);
         self.show_notification(notification).await
     }
 
@@ -179,13 +184,13 @@ impl<R: Runtime> NotificationManager<R> {
             return Ok(());
         }
 
-        let notification = Notification::system_error(error);
+        let notification = Notification::system_error(self.language(), error);
         self.show_notification(notification).await
     }
 
     /// Show a test notification
     pub async fn show_test_notification(&self) -> Result<()> {
-        let notification = Notification::test_notification();
+        let notification = Notification::test_notification(self.language());
         self.system_handler.show_notification(notification).await
     }
 

@@ -7,6 +7,8 @@ use crate::notifications::{
 use anyhow::Result;
 use log::{info as log_info, error as log_error};
 use tauri::{State, AppHandle, Runtime, Wry};
+use tauri::Manager;
+use crate::ui_language::UiLanguageState;
 use tauri_plugin_notification::NotificationExt;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -332,10 +334,13 @@ pub async fn show_recording_started_notification<R: Runtime>(
                 }
 
                 // Fallback: Use Tauri's notification API directly
+                let language = app_handle.state::<UiLanguageState>().get();
                 let title = "Meetily";
                 let body = match meeting_name {
-                    Some(name) => format!("Recording started for meeting: {}", name),
-                    None => "Recording has started. Please inform others in the meeting that you are recording.".to_string(),
+                    Some(name) => language
+                        .text("notification.recording_started")
+                        .replace("{name}", &name),
+                    None => language.text("notification.recording_started_generic").to_string(),
                 };
 
                 log_info!("Using direct Tauri notification fallback: {} - {}", title, body);
@@ -382,8 +387,9 @@ pub async fn show_recording_stopped_notification<R: Runtime>(
         }
 
         // Use direct Tauri notification as fallback for stop notification
+        let language = app_handle.state::<UiLanguageState>().get();
         let title = "Meetily";
-        let body = "Recording has stopped";
+        let body = language.text("notification.recording_stopped");
 
         log_info!("Using direct Tauri notification fallback: {} - {}", title, body);
 

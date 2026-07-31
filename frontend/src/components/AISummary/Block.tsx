@@ -1,5 +1,6 @@
 'use client';
 
+import { t } from '@/i18n';
 import { Block } from '@/types';
 import { useRef, useState, useEffect } from 'react';
 
@@ -32,28 +33,28 @@ const COMMANDS: CommandOption[] = [
     label: 'Text', 
     type: 'text', 
     icon: 'T', 
-    description: 'Just start writing with plain text' 
+    description: "Just start writing with plain text"
   },
   { 
     id: 'bullet', 
     label: 'Bullet List', 
     type: 'bullet', 
     icon: '•', 
-    description: 'Create a bulleted list' 
+    description: "Create a bulleted list"
   },
   { 
     id: 'h1', 
     label: 'Heading 1', 
     type: 'heading1', 
     icon: 'H1', 
-    description: 'Big section heading' 
+    description: "Big section heading"
   },
   { 
     id: 'h2', 
     label: 'Heading 2', 
     type: 'heading2', 
     icon: 'H2', 
-    description: 'Medium section heading' 
+    description: "Medium section heading"
   },
 ];
 
@@ -100,8 +101,8 @@ export const BlockComponent: React.FC<BlockProps> = ({
     }
   }, [selectedCommandIndex, showCommands]);
 
-  const filteredCommands = COMMANDS.filter(cmd => 
-    cmd.label.toLowerCase().includes(commandFilter.toLowerCase())
+  const filteredCommands = COMMANDS.filter(cmd =>
+    t(cmd.label).toLowerCase().includes(commandFilter.toLowerCase())
   );
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -250,7 +251,7 @@ export const BlockComponent: React.FC<BlockProps> = ({
             ${block.type === 'heading1' ? 'text-xl font-bold' : ''}
             ${block.type === 'heading2' ? 'text-lg font-semibold' : ''}
           `}
-          placeholder="Type '/' for commands..."
+          placeholder={t("Type '/' for commands...")}
         />
 
         {showCommands && (
@@ -273,8 +274,8 @@ export const BlockComponent: React.FC<BlockProps> = ({
                   {cmd.icon}
                 </span>
                 <div className="flex-1">
-                  <div className="font-medium">{cmd.label}</div>
-                  <div className="text-sm text-gray-500">{cmd.description}</div>
+                  <div className="font-medium">{t(cmd.label)}</div>
+                  <div className="text-sm text-gray-500">{t(cmd.description)}</div>
                 </div>
               </button>
             ))}

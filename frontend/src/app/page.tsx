@@ -1,5 +1,6 @@
 'use client';
 
+import { t } from '@/i18n';
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { RecordingControls } from '@/components/RecordingControls';
@@ -124,12 +125,12 @@ export default function Home() {
       const result = await recoverMeeting(meetingId);
 
       if (result.success) {
-        toast.success('Meeting recovered successfully!', {
+        toast.success(t("Meeting recovered successfully!"), {
           description: result.audioRecoveryStatus?.status === 'success'
             ? 'Transcripts and audio recovered'
             : 'Transcripts recovered (no audio available)',
           action: result.meetingId ? {
-            label: 'View Meeting',
+            label: t('View Meeting'),
             onClick: () => {
               router.push(`/meeting-details?id=${result.meetingId}`);
             }
@@ -153,7 +154,7 @@ export default function Home() {
         }
       }
     } catch (error) {
-      toast.error('Failed to recover meeting', {
+      toast.error(t("Failed to recover meeting"), {
         description: error instanceof Error ? error.message : 'Unknown error occurred',
       });
       throw error;

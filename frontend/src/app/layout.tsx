@@ -24,6 +24,8 @@ import { RecordingPostProcessingProvider } from '@/contexts/RecordingPostProcess
 import { ImportAudioDialog, ImportDropOverlay } from '@/components/ImportAudio'
 import { ImportDialogProvider } from '@/contexts/ImportDialogContext'
 import { isAudioExtension, getAudioFormatsDisplayList } from '@/constants/audioFormats'
+import { I18nProvider, t, useI18n } from '@/i18n'
+import { useRouter } from 'next/navigation'
 
 
 const sourceSans3 = Source_Sans_3({
@@ -31,6 +33,8 @@ const sourceSans3 = Source_Sans_3({
   weight: ['400', '500', '600', '700'],
   variable: '--font-source-sans-3',
 })
+
+let translationModelWarningShown = false
 
 // Module-level component — stable reference across RootLayout re-renders.
 // Defined here (not inside RootLayout) so React never sees a new function type
@@ -62,11 +66,13 @@ function ConditionalImportDialog({
 
 // export { metadata } from './metadata'
 
-export default function RootLayout({
+function AppContent({
   children,
 }: {
   children: React.ReactNode
 }) {
+  useI18n()
+  const router = useRouter()
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [onboardingCompleted, setOnboardingCompleted] = useState(false)
 
@@ -97,6 +103,24 @@ export default function RootLayout({
       })
   }, [])
 
+  useEffect(() => {
+    if (translationModelWarningShown) return
+    invoke<{ status: string; model: string }>('probe_translation_model')
+      .then(result => {
+        if (result.status !== 'missing' || translationModelWarningShown) return
+        translationModelWarningShown = true
+        toast.warning(t('The selected Groq translation model is no longer available.'), {
+          description: result.model,
+          duration: Infinity,
+          action: {
+            label: t('Choose another model'),
+            onClick: () => router.push('/settings?tab=Transcriptionmodels'),
+          },
+        })
+      })
+      .catch(() => {})
+  }, [router])
+
   // Disable context menu in production
   useEffect(() => {
     if (process.env.NODE_ENV === 'production') {
@@ -111,8 +135,8 @@ export default function RootLayout({
       console.log('[Layout] Received request-recording-toggle from tray');
 
       if (showOnboarding) {
-        toast.error("Please complete setup first", {
-          description: "You need to finish onboarding before you can start recording."
+        toast.error(t("Please complete setup first"), {
+          description: t("You need to finish onboarding before you can start recording.")
         });
       } else {
         // If in main app, forward to useRecordingStart via window event
@@ -132,8 +156,8 @@ export default function RootLayout({
     const betaFeatures = loadBetaFeatures();
 
     if (!betaFeatures.importAndRetranscribe) {
-      toast.error('Beta feature disabled', {
-        description: 'Enable "Import Audio & Retranscribe" in Settings > Beta to use this feature.'
+      toast.error(t('Beta feature disabled'), {
+        description: t('Enable "Import Audio & Retranscribe" in Settings > Beta to use this feature.')
       });
       return;
     }
@@ -149,8 +173,8 @@ export default function RootLayout({
       setImportFilePath(audioFile);
       setShowImportDialog(true);
     } else if (paths.length > 0) {
-      toast.error('Please drop an audio file', {
-        description: `Supported formats: ${getAudioFormatsDisplayList()}`
+      toast.error(t('Please drop an audio file'), {
+        description: t('Supported formats: {formats}', { formats: getAudioFormatsDisplayList() })
       });
     }
   }, []);
@@ -230,50 +254,58 @@ export default function RootLayout({
   }
 
   return (
-    <html lang="en">
+    <>
+      <AnalyticsProvider>
+        <RecordingStateProvider>
+          <TranscriptProvider>
+            <ConfigProvider>
+              <OllamaDownloadProvider>
+                <OnboardingProvider>
+                  <SidebarProvider>
+                    <TooltipProvider>
+                      <RecordingPostProcessingProvider>
+                        <ImportDialogProvider onOpen={handleOpenImportDialog}>
+                          <DownloadProgressToastProvider />
+                          {showOnboarding ? (
+                            <OnboardingFlow onComplete={handleOnboardingComplete} />
+                          ) : (
+                            <div className="flex">
+                              <Sidebar />
+                              <MainContent>{children}</MainContent>
+                            </div>
+                          )}
+                          <ImportDropOverlay visible={showDropOverlay} />
+                          <ConditionalImportDialog
+                            showImportDialog={showImportDialog}
+                            handleImportDialogClose={handleImportDialogClose}
+                            importFilePath={importFilePath}
+                          />
+                        </ImportDialogProvider>
+                      </RecordingPostProcessingProvider>
+                    </TooltipProvider>
+                  </SidebarProvider>
+                </OnboardingProvider>
+              </OllamaDownloadProvider>
+            </ConfigProvider>
+          </TranscriptProvider>
+        </RecordingStateProvider>
+      </AnalyticsProvider>
+      <Toaster position="bottom-center" richColors closeButton />
+    </>
+  )
+}
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  return (
+    <html lang="en" suppressHydrationWarning>
       <body className={`${sourceSans3.variable} font-sans antialiased`}>
-        <AnalyticsProvider>
-          <RecordingStateProvider>
-            <TranscriptProvider>
-              <ConfigProvider>
-                <OllamaDownloadProvider>
-                  <OnboardingProvider>
-                    <SidebarProvider>
-                        <TooltipProvider>
-                          <RecordingPostProcessingProvider>
-                            <ImportDialogProvider onOpen={handleOpenImportDialog}>
-                              {/* Download progress toast provider - listens for background downloads */}
-                              <DownloadProgressToastProvider />
-
-                              {/* Show onboarding or main app */}
-                              {showOnboarding ? (
-                                <OnboardingFlow onComplete={handleOnboardingComplete} />
-                              ) : (
-                                <div className="flex">
-                                  <Sidebar />
-                                  <MainContent>{children}</MainContent>
-                                </div>
-                              )}
-                              {/* Import audio overlay and dialog */}
-                              <ImportDropOverlay visible={showDropOverlay} />
-                              <ConditionalImportDialog
-                                showImportDialog={showImportDialog}
-                                handleImportDialogClose={handleImportDialogClose}
-                                importFilePath={importFilePath}
-                              />
-                            </ImportDialogProvider>
-                          </RecordingPostProcessingProvider>
-                        </TooltipProvider>
-                    </SidebarProvider>
-                  </OnboardingProvider>
-
-                </OllamaDownloadProvider>
-              </ConfigProvider>
-            </TranscriptProvider>
-          </RecordingStateProvider>
-        </AnalyticsProvider>
-
-        <Toaster position="bottom-center" richColors closeButton />
+        <I18nProvider>
+          <AppContent>{children}</AppContent>
+        </I18nProvider>
       </body>
     </html>
   )

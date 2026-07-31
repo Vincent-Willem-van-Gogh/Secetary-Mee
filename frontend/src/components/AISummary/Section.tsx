@@ -1,5 +1,6 @@
 'use client';
 
+import { t } from '@/i18n';
 import { Section as SectionType, Block } from '@/types';
 import { BlockComponent } from './Block';
 import { EditableTitle } from '../EditableTitle';
@@ -77,8 +78,7 @@ export const Section: React.FC<SectionProps> = ({
             onClick={() => onSectionDelete(sectionKey)}
             className="text-gray-400 hover:text-gray-600"
           >
-            Delete
-          </button>
+            {t("Delete")}</button>
         )}
       </div>
       <motion.div

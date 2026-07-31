@@ -1,5 +1,6 @@
 "use client";
 
+import { t } from '@/i18n';
 import { ModelConfig, ModelSettingsModal } from '@/components/ModelSettingsModal';
 import {
   Dialog,
@@ -90,8 +91,8 @@ export function SummaryGeneratorButtonGroup({
 
       // Check if specific model is configured
       if (!selectedModel) {
-        toast.error('No built-in AI model selected', {
-          description: 'Please select a model in settings',
+        toast.error(t("No built-in AI model selected"), {
+          description: t("Please select a model in settings"),
           duration: 5000,
         });
         setSettingsDialogOpen(true);
@@ -116,8 +117,8 @@ export function SummaryGeneratorButtonGroup({
       });
 
       if (!modelInfo) {
-        toast.error('Model not found', {
-          description: `Could not find information for model: ${selectedModel}`,
+        toast.error(t("Model not found"), {
+          description: t('Could not find information for model: {model}', { model: selectedModel }),
           duration: 5000,
         });
         setSettingsDialogOpen(true);
@@ -128,16 +129,21 @@ export function SummaryGeneratorButtonGroup({
       const status = modelInfo.status;
 
       if (status.type === 'downloading') {
-        toast.info('Model download in progress', {
-          description: `${selectedModel} is downloading (${status.progress}%). Please wait until download completes.`,
+        toast.info(t("Model download in progress"), {
+          description: t('{model} is downloading ({progress}%). Please wait until download completes.', {
+            model: selectedModel,
+            progress: status.progress ?? 0,
+          }),
           duration: 5000,
         });
         return;
       }
 
       if (status.type === 'not_downloaded') {
-        toast.error('Model not downloaded', {
-          description: `${selectedModel} needs to be downloaded before use. Opening model settings...`,
+        toast.error(t("Model not downloaded"), {
+          description: t('{model} needs to be downloaded before use. Opening model settings...', {
+            model: selectedModel,
+          }),
           duration: 5000,
         });
         setSettingsDialogOpen(true);
@@ -145,8 +151,10 @@ export function SummaryGeneratorButtonGroup({
       }
 
       if (status.type === 'corrupted') {
-        toast.error('Model file corrupted', {
-          description: `${selectedModel} file is corrupted. Please delete and re-download.`,
+        toast.error(t("Model file corrupted"), {
+          description: t('{model} file is corrupted. Please delete and re-download.', {
+            model: selectedModel,
+          }),
           duration: 7000,
         });
         setSettingsDialogOpen(true);
@@ -154,8 +162,8 @@ export function SummaryGeneratorButtonGroup({
       }
 
       if (status.type === 'error') {
-        toast.error('Model error', {
-          description: status.Error || 'An error occurred with the model',
+        toast.error(t("Model error"), {
+          description: status.Error || t('An error occurred with the model'),
           duration: 5000,
         });
         setSettingsDialogOpen(true);
@@ -163,15 +171,15 @@ export function SummaryGeneratorButtonGroup({
       }
 
       // Fallback
-      toast.error('Model not available', {
-        description: 'The selected model is not ready for use',
+      toast.error(t("Model not available"), {
+        description: t("The selected model is not ready for use"),
         duration: 5000,
       });
       setSettingsDialogOpen(true);
 
     } catch (error) {
       console.error('Error checking built-in AI models:', error);
-      toast.error('Failed to check model status', {
+      toast.error(t("Failed to check model status"), {
         description: error instanceof Error ? error.message : String(error),
         duration: 5000,
       });
@@ -201,7 +209,7 @@ export function SummaryGeneratorButtonGroup({
       if (!models || models.length === 0) {
         // No models available, show message and open settings
         toast.error(
-          'No Ollama models found. Please download gemma2:2b from Model Settings.',
+          t("No Ollama models found. Please download gemma2:2b from Model Settings."),
           { duration: 5000 }
         );
         setSettingsDialogOpen(true);
@@ -217,12 +225,12 @@ export function SummaryGeneratorButtonGroup({
       if (isOllamaNotInstalledError(errorMessage)) {
         // Ollama is not installed - show specific message with download link
         toast.error(
-          'Ollama is not installed',
+          t("Ollama is not installed"),
           {
-            description: 'Please download and install Ollama to use local models.',
+            description: t("Please download and install Ollama to use local models."),
             duration: 7000,
             action: {
-              label: 'Download',
+              label: t('Download'),
               onClick: () => invoke('open_external_url', { url: 'https://ollama.com/download' })
             }
           }
@@ -230,7 +238,7 @@ export function SummaryGeneratorButtonGroup({
       } else {
         // Other error - generic message
         toast.error(
-          'Failed to check Ollama models. Please check if Ollama is running and download a model.',
+          t("Failed to check Ollama models. Please check if Ollama is running and download a model."),
           { duration: 5000 }
         );
       }
@@ -254,10 +262,10 @@ export function SummaryGeneratorButtonGroup({
             Analytics.trackButtonClick('stop_summary_generation', 'meeting_details');
             onStopGeneration();
           }}
-          title="Stop summary generation"
+          title={t("Stop summary generation")}
         >
           <Square className="xl:mr-2" size={18} fill="currentColor" />
-          <span className="hidden lg:inline xl:inline">Stop</span>
+          <span className="hidden lg:inline xl:inline">{t("Stop")}</span>
         </Button>
       ) : (
         <Button
@@ -280,7 +288,7 @@ export function SummaryGeneratorButtonGroup({
           {isCheckingModels || isModelConfigLoading ? (
             <>
               <Loader2 className="animate-spin xl:mr-2" size={18} />
-              <span className="hidden xl:inline">Processing...</span>
+              <span className="hidden xl:inline">{t("Processing...")}</span>
             </>
           ) : (
             <>
@@ -299,17 +307,17 @@ export function SummaryGeneratorButtonGroup({
           <Button
             variant="outline"
             size="sm"
-            title="Summary Settings"
+            title={t("Summary Settings")}
           >
             <Settings />
-            <span className="hidden lg:inline">AI Model</span>
+            <span className="hidden lg:inline">{t("AI Model")}</span>
           </Button>
         </DialogTrigger>
         <DialogContent
           aria-describedby={undefined}
         >
           <VisuallyHidden>
-            <DialogTitle>Model Settings</DialogTitle>
+            <DialogTitle>{t("Model Settings")}</DialogTitle>
           </VisuallyHidden>
           <ModelSettingsModal
             onSave={async (config) => {
@@ -331,10 +339,10 @@ export function SummaryGeneratorButtonGroup({
             <Button
               variant="outline"
               size="sm"
-              title="Select summary template"
+              title={t("Select summary template")}
             >
               <FileText />
-              <span className="hidden lg:inline">Template</span>
+              <span className="hidden lg:inline">{t("Template")}</span>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
@@ -342,10 +350,10 @@ export function SummaryGeneratorButtonGroup({
               <DropdownMenuItem
                 key={template.id}
                 onClick={() => onTemplateSelect(template.id, template.name)}
-                title={template.description}
+                title={t(template.description)}
                 className="flex items-center justify-between gap-2"
               >
-                <span>{template.name}</span>
+                <span>{t(template.name)}</span>
                 {selectedTemplate === template.id && (
                   <Check className="h-4 w-4 text-green-600" />
                 )}

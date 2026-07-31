@@ -1,3 +1,4 @@
+import { t } from '@/i18n';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { listen } from '@tauri-apps/api/event';
@@ -57,6 +58,7 @@ export function useRecordingStop(
     clearTranscripts,
     meetingTitle,
     markMeetingAsSaved,
+    waitForTranslations,
   } = useTranscripts();
 
   const {
@@ -230,6 +232,14 @@ export function useRecordingStop(
       console.log('Waiting for transcript state updates to complete...');
       await new Promise(resolve => setTimeout(resolve, 500));
 
+      setStatus(RecordingStatus.PROCESSING_TRANSCRIPTS, t('Waiting for live translations...'));
+      const missingTranslations = await waitForTranslations(10_000);
+      if (missingTranslations > 0) {
+        toast.warning(t('{count} translations are still missing and can be retried in meeting details.', {
+          count: missingTranslations,
+        }));
+      }
+
       // Save to SQLite
       // NOTE: enabled to save COMPLETE transcripts after frontend receives all updates
       // This ensures user sees all transcripts streaming in before database save
@@ -270,8 +280,8 @@ export function useRecordingStop(
             shouldDetectSummaryLanguage = !(await applyPinnedSummaryLanguageToMeeting(meetingId));
           } catch (error) {
             console.warn('Failed to apply pinned summary language preference for new meeting:', error);
-            toast.warning('Could not apply default summary language', {
-              description: 'The meeting was saved, but the default summary language was not applied.',
+            toast.warning(t("Could not apply default summary language"), {
+              description: t("The meeting was saved, but the default summary language was not applied."),
             });
           }
 
@@ -283,8 +293,8 @@ export function useRecordingStop(
               );
             } catch (error) {
               console.warn('Failed to detect summary language for new meeting:', error);
-              toast.warning('Could not detect summary language', {
-                description: 'The meeting was saved, but Auto could not detect the summary language.',
+              toast.warning(t("Could not detect summary language"), {
+                description: t("The meeting was saved, but Auto could not detect the summary language."),
               });
             }
           }
@@ -323,10 +333,12 @@ export function useRecordingStop(
           setStatus(RecordingStatus.COMPLETED);
 
           // Show success toast with navigation option
-          toast.success('Recording saved successfully!', {
-            description: `${freshTranscripts.length} transcript segments saved.`,
+          toast.success(t("Recording saved successfully!"), {
+            description: t('{count} transcript segments saved.', {
+              count: freshTranscripts.length,
+            }),
             action: {
-              label: 'View Meeting',
+              label: t('View Meeting'),
               onClick: () => {
                 router.push(`/meeting-details?id=${meetingId}`);
                 Analytics.trackButtonClick('view_meeting_from_toast', 'recording_complete');
@@ -398,7 +410,7 @@ export function useRecordingStop(
         } catch (saveError) {
           console.error('Failed to save meeting to database:', saveError);
           setStatus(RecordingStatus.ERROR, saveError instanceof Error ? saveError.message : 'Unknown error');
-          toast.error('Failed to save meeting', {
+          toast.error(t("Failed to save meeting"), {
             description: saveError instanceof Error ? saveError.message : 'Unknown error'
           });
           throw saveError;
@@ -429,6 +441,7 @@ export function useRecordingStop(
     clearTranscripts,
     meetingTitle,
     markMeetingAsSaved,
+    waitForTranslations,
     refetchMeetings,
     setCurrentMeeting,
     setMeetings,
