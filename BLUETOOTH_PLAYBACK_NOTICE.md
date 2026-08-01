@@ -11,12 +11,14 @@ When **reviewing recordings** in Meetily, we recommend using **computer speakers
 Recordings may sound **distorted, sped up, or have clarity issues** when played through Bluetooth headphones, even though the recording file itself is perfectly fine.
 
 ### Symptoms
+
 - Audio plays too fast or too slow
 - Voice sounds higher/lower pitched than normal
 - Quality seems degraded or "chipmunk-like"
 - **Different Bluetooth devices cause different playback speeds**
 
 ### What's Actually Happening
+
 **Your recording is fine!** The issue occurs during **playback**, not recording.
 
 ---
@@ -25,7 +27,7 @@ Recordings may sound **distorted, sped up, or have clarity issues** when played 
 
 ### Why This Happens
 
-1. **Meetily records at 48kHz** (professional audio standard)
+1. **Secretary Mee records at 48kHz** (professional audio standard)
 2. **Bluetooth headphones use various sample rates**: 8kHz, 16kHz, 24kHz, 44.1kHz, or 48kHz
 3. **macOS resamples audio** when sending 48kHz content to Bluetooth devices
 4. **Resampling can fail** if macOS:
@@ -37,14 +39,15 @@ Recordings may sound **distorted, sped up, or have clarity issues** when played 
 
 Different Bluetooth headphones report different capabilities:
 
-| Device Type | Typical Playback Rate | Result When Playing 48kHz |
-|------------|----------------------|---------------------------|
-| Sony WH-1000XM4 | 16-44.1kHz (varies) | May sound 1.5-3x faster |
-| AirPods Pro | 24kHz or 48kHz | Usually OK, but can vary |
-| Cheap BT Headset | 8-16kHz | Often sounds very fast |
-| High-end BT (LDAC) | 44.1-48kHz | Usually works correctly |
+| Device Type        | Typical Playback Rate | Result When Playing 48kHz |
+| ------------------ | --------------------- | ------------------------- |
+| Sony WH-1000XM4    | 16-44.1kHz (varies)   | May sound 1.5-3x faster   |
+| AirPods Pro        | 24kHz or 48kHz        | Usually OK, but can vary  |
+| Cheap BT Headset   | 8-16kHz               | Often sounds very fast    |
+| High-end BT (LDAC) | 44.1-48kHz            | Usually works correctly   |
 
 The rate depends on:
+
 - **Bluetooth profile** (A2DP for music vs HFP for calls)
 - **Active codec** (SBC, AAC, aptX, LDAC)
 - **Battery mode** (power-saving modes may reduce quality)
@@ -77,20 +80,23 @@ The rate depends on:
 To confirm your recording is actually fine:
 
 1. **Play recording through computer speakers**
+
    - If it sounds normal → Recording is good, BT playback is the issue ✅
    - If it still sounds wrong → May be a different issue ❌
-
 2. **Check file properties**
+
    ```bash
    # In terminal:
    ffprobe path/to/recording/audio.mp4
    ```
+
    Should show:
+
    - `sample_rate=48000` ✅
    - `channels=1` ✅
    - `codec_name=aac` ✅
-
 3. **Try different playback devices**
+
    - Computer speakers: Should sound normal
    - Wired headphones: Should sound normal
    - Bluetooth device A: Might sound wrong
@@ -100,11 +106,12 @@ To confirm your recording is actually fine:
 
 ## Why We Don't "Fix" This
 
-### This is Not a Meetily Bug
+### This is Not a Secretary Mee Bug
 
 The issue is in **macOS's Bluetooth audio stack**, not in Meetily's recording engine.
 
 **Evidence:**
+
 - Recordings play perfectly on computer speakers
 - File metadata shows correct 48kHz encoding
 - Other professional audio apps have the same limitation
@@ -113,11 +120,13 @@ The issue is in **macOS's Bluetooth audio stack**, not in Meetily's recording en
 ### Industry Standard Practice
 
 Professional audio software **always** recommends:
+
 - Monitor through studio monitors (speakers) or wired headphones
 - Avoid Bluetooth for critical listening
 - Use wired connections for audio work
 
 Examples:
+
 - **Logic Pro X**: Warns against BT monitoring
 - **Audacity**: Recommends wired headphones
 - **GarageBand**: Disables BT for recording/monitoring
@@ -127,9 +136,11 @@ Examples:
 ## Workarounds
 
 ### Option 1: Use Computer Speakers (Recommended)
+
 **Best**: Most accurate, no resampling issues
 
 ### Option 2: Export at Different Sample Rate
+
 If you **must** use Bluetooth for playback:
 
 1. **Export recording** at lower sample rate (future feature)
@@ -140,7 +151,9 @@ If you **must** use Bluetooth for playback:
 3. **Try 44.1kHz** (better BT compatibility than 48kHz)
 
 ### Option 3: Use High-Quality Bluetooth
+
 Devices with **LDAC** or **aptX HD** codecs:
+
 - Sony WH-1000XM5 (LDAC mode)
 - Sennheiser Momentum 4
 - Some high-end Bose models
@@ -178,6 +191,7 @@ Playback (Bluetooth):
 ### Apple's Documentation
 
 From [Apple Technical Note TN2321](https://developer.apple.com/library/archive/technotes/tn2321/):
+
 > "Bluetooth audio devices may report supported sample rates that differ from
 > their actual playback rates. Applications should not rely on Bluetooth
 > devices for accurate audio monitoring."
@@ -187,23 +201,30 @@ From [Apple Technical Note TN2321](https://developer.apple.com/library/archive/t
 ## FAQ
 
 ### Q: Will this be fixed in a future update?
-**A**: This is a macOS/Bluetooth limitation, not a Meetily bug. We've correctly recorded at 48kHz.
+
+**A**: This is a macOS/Bluetooth limitation, not a Secretary Mee bug. We've correctly recorded at 48kHz.
 
 ### Q: Why not record at 16kHz if that's what Bluetooth uses?
+
 **A**: Because:
+
 1. System audio is 48kHz (can't be changed)
 2. 48kHz is professional quality (16kHz is phone-call quality)
 3. Most users play back on computer speakers
 4. Recording at 16kHz would degrade quality for 95% of users
 
 ### Q: Can you detect my Bluetooth device and warn me?
+
 **A**: Yes! Meetily now shows a warning when Bluetooth headphones are active during playback.
 
 ### Q: Does this affect recording quality?
+
 **A**: **No**. Recording quality is perfect. Only **playback** through Bluetooth has issues.
 
 ### Q: What about AirPods? They're supposed to be high quality.
+
 **A**: AirPods handle 48kHz better than most BT devices, but can still have issues depending on:
+
 - Codec negotiation (AAC vs SBC)
 - Battery level (power-saving mode)
 - Connection quality (Bluetooth interference)
