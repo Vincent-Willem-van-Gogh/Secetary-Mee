@@ -12,3 +12,5 @@ The import excludes upstream Git metadata and history, GitHub release workflows,
 the tracked Visual Studio Build Tools installer, updater/release tooling, and
 marketing screenshots and demo media. The updater is intentionally disabled
 until this repository has its own release manifests and signing keys.
+
+Secretary Mee changed a lot from Meetily, e.g. Transcribe ability, Chinese GUI, API management, LLM support etc. So it becomes the better choice for Non-native English speakers especially from China.
