@@ -2,7 +2,7 @@
 
 ## Important Information for Recording Review
 
-When **reviewing recordings** in Meetily, we recommend using **computer speakers** or **wired headphones** rather than Bluetooth headphones for accurate playback.
+When **reviewing recordings** in Secretary Mee, we recommend using **computer speakers** or **wired headphones** rather than Bluetooth headphones for accurate playback.
 
 ---
 
@@ -108,7 +108,7 @@ To confirm your recording is actually fine:
 
 ### This is Not a Secretary Mee Bug
 
-The issue is in **macOS's Bluetooth audio stack**, not in Meetily's recording engine.
+The issue is in **macOS's Bluetooth audio stack**, not in Secretary Mee's recording engine.
 
 **Evidence:**
 
@@ -215,7 +215,7 @@ From [Apple Technical Note TN2321](https://developer.apple.com/library/archive/t
 
 ### Q: Can you detect my Bluetooth device and warn me?
 
-**A**: Yes! Meetily now shows a warning when Bluetooth headphones are active during playback.
+**A**: Yes! Secetary Mee now shows a warning when Bluetooth headphones are active during playback.
 
 ### Q: Does this affect recording quality?
 
@@ -251,5 +251,5 @@ From [Apple Technical Note TN2321](https://developer.apple.com/library/archive/t
 
 ---
 
-**Last Updated**: October 10, 2025
-**Applies To**: Meetily v0.0.5+ on macOS
+**Last Updated**: August 10, 2026
+**Applies To**: Secretary Mee v0.4.0+ on macOS
