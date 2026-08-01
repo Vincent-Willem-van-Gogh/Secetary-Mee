@@ -6,7 +6,7 @@ use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{LazyLock, Mutex};
 use tauri::{AppHandle, Emitter, Manager};
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::process::Command;
 use tokio::sync::mpsc;
 
@@ -32,6 +32,15 @@ static DOWNLOAD_ACTIVE: AtomicBool = AtomicBool::new(false);
 static DOWNLOAD_CANCELLED: AtomicBool = AtomicBool::new(false);
 static OVERFLOWED: AtomicBool = AtomicBool::new(false);
 static REVISION: AtomicU64 = AtomicU64::new(0);
+static NEXT_SESSION_ID: AtomicU64 = AtomicU64::new(1);
+static LATEST_UPDATE: LazyLock<Mutex<LiveDraftUpdate>> = LazyLock::new(|| {
+    Mutex::new(LiveDraftUpdate {
+        state: "idle",
+        text: String::new(),
+        revision: 0,
+        error: None,
+    })
+});
 
 #[derive(Debug)]
 enum Input {
@@ -41,6 +50,7 @@ enum Input {
 }
 
 struct Session {
+    id: u64,
     sender: mpsc::Sender<Input>,
     task: tokio::task::JoinHandle<()>,
 }
@@ -108,17 +118,21 @@ fn model_ready_at(path: &Path) -> bool {
 
 fn emit_update(state: &'static str, text: impl Into<String>, error: Option<String>) {
     let revision = REVISION.fetch_add(1, Ordering::Relaxed) + 1;
+    let update = LiveDraftUpdate {
+        state,
+        text: text.into(),
+        revision,
+        error,
+    };
+    *LATEST_UPDATE.lock().unwrap() = update.clone();
     if let Some(app) = APP.lock().unwrap().as_ref() {
-        let _ = app.emit(
-            "live-draft-update",
-            LiveDraftUpdate {
-                state,
-                text: text.into(),
-                revision,
-                error,
-            },
-        );
+        let _ = app.emit("live-draft-update", update);
     }
+}
+
+#[tauri::command]
+pub fn get_live_preview_status() -> LiveDraftUpdate {
+    LATEST_UPDATE.lock().unwrap().clone()
 }
 
 #[tauri::command]
@@ -298,7 +312,7 @@ fn helper_path(app: &AppHandle) -> Result<PathBuf, String> {
         .ok_or_else(|| "Sherpa live preview helper is not installed".into())
 }
 
-pub async fn start_session(app: &AppHandle) -> Result<(), String> {
+pub async fn start_session(app: &AppHandle) -> Result<u64, String> {
     stop_session().await;
     let model = model_dir()?;
     if !model_ready_at(&model) {
@@ -310,7 +324,8 @@ pub async fn start_session(app: &AppHandle) -> Result<(), String> {
         .arg(model)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::null())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true)
         .spawn()
         .map_err(|e| format!("Could not start Sherpa helper: {e}"))?;
     let mut stdin = child
@@ -321,6 +336,15 @@ pub async fn start_session(app: &AppHandle) -> Result<(), String> {
         .stdout
         .take()
         .ok_or("Sherpa helper stdout is unavailable")?;
+    let stderr = child
+        .stderr
+        .take()
+        .ok_or("Sherpa helper stderr is unavailable")?;
+    let stderr_task = tokio::spawn(async move {
+        let mut message = String::new();
+        let _ = BufReader::new(stderr).read_to_string(&mut message).await;
+        message
+    });
     let mut lines = BufReader::new(stdout).lines();
     let first = tokio::time::timeout(std::time::Duration::from_secs(30), lines.next_line())
         .await
@@ -334,14 +358,24 @@ pub async fn start_session(app: &AppHandle) -> Result<(), String> {
         return Err(format!("Sherpa helper failed to load: {first}"));
     }
 
+    let session_id = NEXT_SESSION_ID.fetch_add(1, Ordering::Relaxed);
     let (sender, mut receiver) = mpsc::channel::<Input>(64);
     let task = tokio::spawn(async move {
+        let mut expected_shutdown = false;
+        let mut helper_reported_error = false;
+        let mut unexpected_error = None;
         loop {
             tokio::select! {
                 input = receiver.recv() => {
-                    let Some(input) = input else { break };
+                    let Some(input) = input else {
+                        expected_shutdown = true;
+                        break;
+                    };
                     if OVERFLOWED.swap(false, Ordering::SeqCst) {
-                        if write_frame(&mut stdin, 2, &[]).await.is_err() { break; }
+                        if let Err(error) = write_frame(&mut stdin, 2, &[]).await {
+                            unexpected_error = Some(format!("Could not reset Sherpa helper: {error}"));
+                            break;
+                        }
                     }
                     let result = match input {
                         Input::Audio(samples) => {
@@ -350,26 +384,57 @@ pub async fn start_session(app: &AppHandle) -> Result<(), String> {
                         }
                         Input::Reset => write_frame(&mut stdin, 2, &[]).await,
                         Input::Shutdown => {
+                            expected_shutdown = true;
                             let _ = write_frame(&mut stdin, 3, &[]).await;
                             break;
                         }
                     };
-                    if result.is_err() { break; }
+                    if let Err(error) = result {
+                        unexpected_error = Some(format!("Could not send audio to Sherpa helper: {error}"));
+                        break;
+                    }
                 }
                 line = lines.next_line() => {
                     match line {
-                        Ok(Some(line)) => handle_helper_output(&line),
-                        _ => break,
+                        Ok(Some(line)) => helper_reported_error |= handle_helper_output(&line),
+                        Ok(None) => {
+                            unexpected_error = Some("Sherpa helper exited unexpectedly".into());
+                            break;
+                        }
+                        Err(error) => {
+                            unexpected_error = Some(format!("Could not read Sherpa helper output: {error}"));
+                            break;
+                        }
                     }
                 }
             }
         }
         let _ = child.kill().await;
+        let stderr = stderr_task.await.unwrap_or_default();
+        if !expected_shutdown {
+            let is_current = SESSION
+                .lock()
+                .await
+                .as_ref()
+                .is_some_and(|session| session.id == session_id);
+            if is_current {
+                *AUDIO_SENDER.lock().unwrap() = None;
+                if !helper_reported_error {
+                    let mut message = unexpected_error
+                        .unwrap_or_else(|| "Sherpa helper stopped unexpectedly".into());
+                    if !stderr.trim().is_empty() {
+                        message.push_str(": ");
+                        message.push_str(stderr.trim());
+                    }
+                    emit_update("error", "", Some(message));
+                }
+            }
+        }
     });
     *AUDIO_SENDER.lock().unwrap() = Some(sender.clone());
-    *SESSION.lock().await = Some(Session { sender, task });
+    *SESSION.lock().await = Some(Session { id: session_id, sender, task });
     emit_update("listening", "", None);
-    Ok(())
+    Ok(session_id)
 }
 
 async fn write_frame(
@@ -383,23 +448,31 @@ async fn write_frame(
     writer.flush().await
 }
 
-fn handle_helper_output(line: &str) {
+fn handle_helper_output(line: &str) -> bool {
     match serde_json::from_str::<HelperOutput>(line) {
         Ok(HelperOutput::Draft { text, revision }) => {
             REVISION.fetch_max(revision, Ordering::Relaxed);
             emit_update("listening", text, None);
+            false
         }
         Ok(HelperOutput::Cleared { revision }) => {
             REVISION.fetch_max(revision, Ordering::Relaxed);
             emit_update("listening", "", None);
+            false
         }
-        Ok(HelperOutput::Error { message }) => emit_update("error", "", Some(message)),
-        Ok(HelperOutput::Ready) => {}
-        Err(error) => emit_update(
-            "error",
-            "",
-            Some(format!("Invalid helper response: {error}")),
-        ),
+        Ok(HelperOutput::Error { message }) => {
+            emit_update("error", "", Some(message));
+            true
+        }
+        Ok(HelperOutput::Ready) => false,
+        Err(error) => {
+            emit_update(
+                "error",
+                "",
+                Some(format!("Invalid helper response: {error}")),
+            );
+            true
+        }
     }
 }
 
@@ -435,12 +508,36 @@ pub fn resume_session() {
     emit_update("listening", "", None);
 }
 
-pub async fn stop_session() {
-    *AUDIO_SENDER.lock().unwrap() = None;
-    if let Some(session) = SESSION.lock().await.take() {
+async fn stop_session_inner(expected_id: Option<u64>) -> bool {
+    let session = {
+        let mut current = SESSION.lock().await;
+        if current
+            .as_ref()
+            .is_some_and(|session| expected_id.map_or(true, |id| session.id == id))
+        {
+            current.take()
+        } else {
+            None
+        }
+    };
+    if let Some(session) = session {
+        *AUDIO_SENDER.lock().unwrap() = None;
         let _ = session.sender.send(Input::Shutdown).await;
         let _ = tokio::time::timeout(std::time::Duration::from_secs(3), session.task).await;
+        true
+    } else {
+        false
     }
+}
+
+pub async fn stop_session_if(session_id: u64) {
+    if stop_session_inner(Some(session_id)).await {
+        emit_update("idle", "", None);
+    }
+}
+
+pub async fn stop_session() {
+    let _ = stop_session_inner(None).await;
     emit_update("idle", "", None);
 }
 
@@ -464,5 +561,13 @@ mod tests {
             std::fs::write(temp.path().join(name), b"x").unwrap();
         }
         assert!(model_ready_at(temp.path()));
+    }
+
+    #[test]
+    fn latest_update_survives_a_late_frontend_listener() {
+        emit_update("error", "", Some("helper exited".into()));
+        let update = get_live_preview_status();
+        assert_eq!(update.state, "error");
+        assert_eq!(update.error.as_deref(), Some("helper exited"));
     }
 }

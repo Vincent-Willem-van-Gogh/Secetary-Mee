@@ -1,6 +1,7 @@
 'use client';
 
 import { t } from '@/i18n';
+import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { AnimatePresence, motion } from 'framer-motion';
 import { LoaderCircle, Pause, Play, Square } from 'lucide-react';
@@ -46,9 +47,30 @@ export function LiveDraftPanel({
   const scroller = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    let active = true;
     let unlisten: (() => void) | undefined;
-    listen<LiveDraftUpdate>('live-draft-update', event => setDraft(event.payload)).then(fn => { unlisten = fn; });
-    return () => unlisten?.();
+    const apply = (next: LiveDraftUpdate) => {
+      if (active) setDraft(current => next.revision >= current.revision ? next : current);
+    };
+    void listen<LiveDraftUpdate>('live-draft-update', event => apply(event.payload))
+      .then(async fn => {
+        if (!active) {
+          fn();
+          return;
+        }
+        unlisten = fn;
+        apply(await invoke<LiveDraftUpdate>('get_live_preview_status'));
+      })
+      .catch(error => apply({
+        state: 'error',
+        text: '',
+        revision: 0,
+        error: String(error),
+      }));
+    return () => {
+      active = false;
+      unlisten?.();
+    };
   }, []);
 
   useEffect(() => {

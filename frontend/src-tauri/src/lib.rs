@@ -66,6 +66,35 @@ use tauri::{AppHandle, Manager, Runtime};
 use tokio::sync::RwLock;
 
 static RECORDING_FLAG: AtomicBool = AtomicBool::new(false);
+static RECORDING_STARTING: AtomicBool = AtomicBool::new(false);
+
+struct RecordingStartGuard<'a>(&'a AtomicBool);
+
+fn acquire_recording_start(flag: &AtomicBool) -> Result<RecordingStartGuard<'_>, String> {
+    flag.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .map(|_| RecordingStartGuard(flag))
+        .map_err(|_| "Recording start already in progress".to_string())
+}
+
+impl Drop for RecordingStartGuard<'_> {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::SeqCst);
+    }
+}
+
+#[cfg(test)]
+mod recording_start_tests {
+    use super::*;
+
+    #[test]
+    fn recording_start_guard_rejects_concurrent_start_and_recovers_after_drop() {
+        let flag = AtomicBool::new(false);
+        let first = acquire_recording_start(&flag).unwrap();
+        assert!(acquire_recording_start(&flag).is_err());
+        drop(first);
+        assert!(acquire_recording_start(&flag).is_ok());
+    }
+}
 
 // Global language preference storage (default to "auto-translate" for automatic translation to English)
 static LANGUAGE_PREFERENCE: std::sync::LazyLock<StdMutex<String>> =
@@ -98,11 +127,12 @@ async fn start_recording(
         meeting_name
     );
 
+    let _start_guard = acquire_recording_start(&RECORDING_STARTING)?;
     if is_recording().await {
         return Err("Recording already in progress".to_string());
     }
 
-    live_preview::start_session(&app).await?;
+    let preview_session_id = live_preview::start_session(&app).await?;
 
     // Call the actual audio recording system with meeting name
     match audio::recording_commands::start_recording_with_devices_and_meeting(
@@ -140,7 +170,7 @@ async fn start_recording(
             Ok(())
         }
         Err(e) => {
-            live_preview::stop_session().await;
+            live_preview::stop_session_if(preview_session_id).await;
             log_error!("Failed to start audio recording: {}", e);
             Err(format!("Failed to start recording: {}", e))
         }
@@ -322,7 +352,11 @@ async fn start_recording_with_devices_and_meeting(
     // Clone meeting_name for notification use later
     let meeting_name_for_notification = meeting_name.clone();
 
-    live_preview::start_session(&app).await?;
+    let _start_guard = acquire_recording_start(&RECORDING_STARTING)?;
+    if audio::recording_commands::is_recording().await {
+        return Err("Recording already in progress".to_string());
+    }
+    let preview_session_id = live_preview::start_session(&app).await?;
 
     // Call the recording module functions that support meeting names
     let recording_result = match (mic_device_name.clone(), system_device_name.clone()) {
@@ -374,7 +408,7 @@ async fn start_recording_with_devices_and_meeting(
             Ok(())
         }
         Err(e) => {
-            live_preview::stop_session().await;
+            live_preview::stop_session_if(preview_session_id).await;
             log_error!("Failed to start recording via tauri command: {}", e);
             Err(e)
         }
@@ -597,6 +631,7 @@ pub fn run() {
             parakeet_engine::commands::open_parakeet_models_folder,
             // Sherpa live preview model commands
             live_preview::get_live_preview_model_status,
+            live_preview::get_live_preview_status,
             live_preview::download_live_preview_model,
             live_preview::cancel_live_preview_model_download,
             live_preview::delete_live_preview_model,

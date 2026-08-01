@@ -17,7 +17,7 @@ interface RecordingControlsProps {
   isRecording: boolean;
   barHeights: string[];
   onRecordingStop: (callApi?: boolean) => void;
-  onRecordingStart: () => void;
+  onRecordingStart: () => void | Promise<void>;
   onTranscriptReceived: (summary: SummaryResponse) => void;
   onTranscriptionError?: (message: string) => void;
   onStopInitiated?: () => void; // Called immediately when stop button is clicked
@@ -60,6 +60,7 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
   const [isValidatingModel, setIsValidatingModel] = useState(false);
   const [speechDetected, setSpeechDetected] = useState(false);
   const [deviceError, setDeviceError] = useState<{ title: string, message: string } | null>(null);
+  const startInFlightRef = useRef(false);
 
   const currentTime = 0;
   const duration = 0;
@@ -86,7 +87,9 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
   }, []);
 
   const handleStartRecording = useCallback(async () => {
-    if (isStarting || isValidatingModel) return;
+    if (startInFlightRef.current || isStarting || isValidatingModel) return;
+    startInFlightRef.current = true;
+    setIsStarting(true);
     console.log('Starting recording...');
     console.log('Selected devices:', selectedDevices);
     console.log('Meeting name:', meetingName);
@@ -136,6 +139,9 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
           message: t('Unable to start recording. Please check your audio device settings and try again.'),
         });
       }
+    } finally {
+      startInFlightRef.current = false;
+      setIsStarting(false);
     }
   }, [onRecordingStart, isStarting, isValidatingModel, selectedDevices, meetingName, isRecording]);
 

@@ -17,6 +17,8 @@ const [
   modelManager,
   retranscribeDialog,
   importDialog,
+  backend,
+  livePreview,
   css,
 ] = await Promise.all([
   readFile(new URL('../../src/components/Sidebar/index.tsx', import.meta.url), 'utf8'),
@@ -33,6 +35,8 @@ const [
   readFile(new URL('../../src/components/WhisperModelManager.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../../src/components/MeetingDetails/RetranscribeDialog.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../../src/components/ImportAudio/ImportAudioDialog.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../../src-tauri/src/lib.rs', import.meta.url), 'utf8'),
+  readFile(new URL('../../src-tauri/src/live_preview.rs', import.meta.url), 'utf8'),
   readFile(new URL('../../src/app/globals.css', import.meta.url), 'utf8'),
 ]);
 
@@ -102,4 +106,13 @@ test('downloading a Whisper model does not silently change the recording default
   assert.match(modelManager, /const selectModel = async \(modelName: string\)/);
   assert.match(settings, /params\.get\('provider'\) === 'localWhisper'/);
   assert.match(transcriptSettings, /setUiProvider\(initialProvider \?\? transcriptModelConfig\.provider\)/);
+});
+
+test('recording start cannot race and live preview state survives panel mounting', () => {
+  assert.match(controls, /setIsStarting\(true\)/);
+  assert.match(controls, /finally[\s\S]*setIsStarting\(false\)/);
+  assert.match(backend, /acquire_recording_start/);
+  assert.match(backend, /stop_session_if\(preview_session_id\)/);
+  assert.match(livePreview, /get_live_preview_status/);
+  assert.match(draft, /invoke<LiveDraftUpdate>\('get_live_preview_status'\)/);
 });
