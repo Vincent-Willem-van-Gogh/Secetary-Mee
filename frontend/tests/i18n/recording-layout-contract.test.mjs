@@ -2,7 +2,23 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const [sidebar, mainContent, statusOverlays, controls, page, transcript, draft, toggle, settings, css] = await Promise.all([
+const [
+  sidebar,
+  mainContent,
+  statusOverlays,
+  controls,
+  page,
+  transcript,
+  draft,
+  toggle,
+  settings,
+  transcriptSettings,
+  modelHook,
+  modelManager,
+  retranscribeDialog,
+  importDialog,
+  css,
+] = await Promise.all([
   readFile(new URL('../../src/components/Sidebar/index.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../../src/components/MainContent/index.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../../src/app/_components/StatusOverlays.tsx', import.meta.url), 'utf8'),
@@ -12,6 +28,11 @@ const [sidebar, mainContent, statusOverlays, controls, page, transcript, draft, 
   readFile(new URL('../../src/components/LiveDraftPanel.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../../src/components/Sidebar/SidebarToggleButton.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../../src/app/settings/page.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../../src/components/TranscriptSettings.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../../src/hooks/useTranscriptionModels.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../../src/components/WhisperModelManager.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../../src/components/MeetingDetails/RetranscribeDialog.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../../src/components/ImportAudio/ImportAudioDialog.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../../src/app/globals.css', import.meta.url), 'utf8'),
 ]);
 
@@ -53,8 +74,32 @@ test('settings header and tabs use the compact balanced layout', () => {
   assert.match(settings, /px-8 py-\[5px\]/);
   assert.match(settings, /flex h-\[30px\] items-center gap-4/);
   assert.match(settings, /\[&_button\]:h-\[30px\][^"\n]+\[&_button\]:min-h-\[30px\][^"\n]+\[&_button\]:w-\[30px\]/);
-  assert.match(settings, /h-\[30px\] min-h-\[30px\][^"\n]+text-base/);
+  assert.match(settings, /h-\[30px\] min-h-\[30px\][^"\n]+text-xs/);
   assert.match(settings, /text-lg font-semibold/);
   assert.match(settings, /px-8 pb-8 pt-2/);
   assert.doesNotMatch(settings, /TabsContent value="beta" className="mt-6"/);
+});
+
+test('toast close control stays circular without changing global button sizing', () => {
+  assert.match(css, /\[data-close-button\][\s\S]*width: 20px;[\s\S]*min-width: 20px;[\s\S]*height: 20px;[\s\S]*min-height: 20px;[\s\S]*border-radius: 50%;/);
+  assert.match(css, /button,[\s\S]*min-height: 44px;/);
+});
+
+test('local Whisper Large V3 remains visible for both batch transcription flows', () => {
+  assert.match(modelHook, /m\.status === 'Available' \|\| m\.name === 'large-v3'/);
+  assert.match(modelHook, /name: 'large-v3'[\s\S]*size_mb: 2951,[\s\S]*status: 'Missing'/);
+  assert.match(modelHook, /provider === 'parakeet' && m\.status === 'Available'/);
+  for (const dialog of [retranscribeDialog, importDialog]) {
+    assert.match(dialog, /model\.status !== 'Available'/);
+    assert.match(dialog, /formatModelSize\(model\.size_mb\)/);
+    assert.match(dialog, /\/settings\?tab=Transcriptionmodels&provider=localWhisper/);
+    assert.match(dialog, /!selectedModelAvailable/);
+  }
+});
+
+test('downloading a Whisper model does not silently change the recording default', () => {
+  assert.doesNotMatch(modelManager, /onModelSelectRef\.current\(modelName\)/);
+  assert.match(modelManager, /const selectModel = async \(modelName: string\)/);
+  assert.match(settings, /params\.get\('provider'\) === 'localWhisper'/);
+  assert.match(transcriptSettings, /setUiProvider\(initialProvider \?\? transcriptModelConfig\.provider\)/);
 });

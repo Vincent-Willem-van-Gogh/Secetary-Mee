@@ -34,20 +34,9 @@ export function ModelManager({
   const [error, setError] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
   const [downloadingModels, setDownloadingModels] = useState<Set<string>>(new Set());
-  const [hasUserSelection, setHasUserSelection] = useState(false);
-
-  // Refs for stable callbacks
-  const onModelSelectRef = useRef(onModelSelect);
-  const autoSaveRef = useRef(autoSave);
 
   // Progress throttle map to prevent rapid updates
   const progressThrottleRef = useRef<Map<string, { progress: number; timestamp: number }>>(new Map());
-
-  // Update refs when props change
-  useEffect(() => {
-    onModelSelectRef.current = onModelSelect;
-    autoSaveRef.current = autoSave;
-  }, [onModelSelect, autoSave]);
 
   // Load persisted downloading state from localStorage
   const getPersistedDownloadingModels = (): Set<string> => {
@@ -187,13 +176,6 @@ export function ModelManager({
             duration: 4000
           });
 
-          // Auto-select after download using stable refs
-          if (onModelSelectRef.current) {
-            onModelSelectRef.current(modelName);
-            if (autoSaveRef.current) {
-              saveModelSelection(modelName);
-            }
-          }
         }
       );
 
@@ -330,8 +312,6 @@ export function ModelManager({
   };
 
   const selectModel = async (modelName: string) => {
-    setHasUserSelection(true);
-
     if (onModelSelect) {
       onModelSelect(modelName);
     }

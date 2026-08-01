@@ -23,19 +23,20 @@ export interface TranscriptSettingsProps {
     transcriptModelConfig: TranscriptModelProps;
     setTranscriptModelConfig: (config: TranscriptModelProps) => void;
     onModelSelect?: () => void;
+    initialProvider?: TranscriptModelProps['provider'];
 }
 
-export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelConfig, onModelSelect }: TranscriptSettingsProps) {
+export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelConfig, onModelSelect, initialProvider }: TranscriptSettingsProps) {
     const [apiKey, setApiKey] = useState<string | null>(transcriptModelConfig.apiKey || null);
     const [showApiKey, setShowApiKey] = useState<boolean>(false);
     const [isApiKeyLocked, setIsApiKeyLocked] = useState<boolean>(true);
     const [isLockButtonVibrating, setIsLockButtonVibrating] = useState<boolean>(false);
     const [uiProvider, setUiProvider] = useState<TranscriptModelProps['provider']>(transcriptModelConfig.provider);
 
-    // Sync uiProvider when backend config changes (e.g., after model selection or initial load)
+    // A deep link is a display request only; it must not change the saved default provider.
     useEffect(() => {
-        setUiProvider(transcriptModelConfig.provider);
-    }, [transcriptModelConfig.provider]);
+        setUiProvider(initialProvider ?? transcriptModelConfig.provider);
+    }, [initialProvider, transcriptModelConfig.provider]);
 
     useEffect(() => {
         if (transcriptModelConfig.provider === 'localWhisper' || transcriptModelConfig.provider === 'parakeet') {
@@ -377,7 +378,5 @@ function LiveTranslationSettings() {
         </section>
     );
 }
-
-
 
 

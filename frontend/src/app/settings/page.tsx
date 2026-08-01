@@ -5,7 +5,7 @@ import { ArrowLeft, Settings2, Mic, Database as DatabaseIcon, SparkleIcon, Flask
 import { useRouter } from 'next/navigation';
 import { invoke } from '@tauri-apps/api/core';
 import { motion } from 'framer-motion';
-import { TranscriptSettings } from '@/components/TranscriptSettings';
+import { TranscriptSettings, type TranscriptModelProps } from '@/components/TranscriptSettings';
 import { RecordingSettings } from '@/components/RecordingSettings';
 import { PreferenceSettings } from '@/components/PreferenceSettings';
 import { SummaryModelSettings } from '@/components/SummaryModelSettings';
@@ -31,12 +31,15 @@ export default function SettingsPage() {
 
   // Animation state for tabs
   const [activeTab, setActiveTab] = useState('system');
+  const [requestedTranscriptProvider, setRequestedTranscriptProvider] = useState<TranscriptModelProps['provider']>();
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const [underlineStyle, setUnderlineStyle] = useState({ left: 0, width: 0 });
 
   useEffect(() => {
-    const requestedTab = new URLSearchParams(window.location.search).get('tab');
+    const params = new URLSearchParams(window.location.search);
+    const requestedTab = params.get('tab');
     if (tabs.some(tab => tab.value === requestedTab)) setActiveTab(requestedTab!);
+    if (params.get('provider') === 'localWhisper') setRequestedTranscriptProvider('localWhisper');
   }, []);
 
   // Load saved transcript configuration on mount
@@ -81,7 +84,7 @@ export default function SettingsPage() {
             </div>
             <button
               onClick={() => router.back()}
-              className="flex h-[30px] min-h-[30px] items-center gap-2 rounded-lg px-2 text-base text-muted-foreground transition-colors hover:bg-accent hover:text-primary active:scale-95"
+              className="flex h-[30px] min-h-[30px] items-center gap-2 rounded-lg px-2 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-primary active:scale-95"
             >
               <ArrowLeft className="w-5 h-5" />
               <span>{t('Back')}</span>
@@ -133,6 +136,7 @@ export default function SettingsPage() {
               <TranscriptSettings
                 transcriptModelConfig={transcriptModelConfig}
                 setTranscriptModelConfig={setTranscriptModelConfig}
+                initialProvider={requestedTranscriptProvider}
               />
             </TabsContent>
             <TabsContent value="summaryModels">

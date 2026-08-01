@@ -22,8 +22,15 @@ import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { toast } from 'sonner';
 import { useConfig } from '@/contexts/ConfigContext';
 import { LANGUAGES } from '@/constants/languages';
-import { useTranscriptionModels, ModelOption } from '@/hooks/useTranscriptionModels';
+import {
+  formatModelSize,
+  getModelAvailabilityMessage,
+  getModelStatusText,
+  useTranscriptionModels,
+  ModelOption,
+} from '@/hooks/useTranscriptionModels';
 import Analytics from '@/lib/analytics';
+import { useRouter } from 'next/navigation';
 
 interface RetranscribeDialogProps {
   open: boolean;
@@ -59,6 +66,7 @@ export function RetranscribeDialog({
   meetingFolderPath,
   onComplete,
 }: RetranscribeDialogProps) {
+  const router = useRouter();
   const { selectedLanguage, transcriptModelConfig } = useConfig();
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState<RetranscriptionProgress | null>(null);
@@ -94,6 +102,10 @@ export function RetranscribeDialog({
     return availableModels.find(m => m.provider === provider && m.name === name);
   }, [selectedModelKey, availableModels]);
   const isParakeetModel = selectedModelDetails?.provider === 'parakeet';
+  const selectedModelAvailable = selectedModelDetails?.status === 'Available';
+  const largeV3Model = availableModels.find(
+    model => model.provider === 'whisper' && model.name === 'large-v3'
+  );
 
   useEffect(() => {
     if (isParakeetModel && selectedLang !== 'auto') {
@@ -198,7 +210,7 @@ export function RetranscribeDialog({
   }, [open, meetingId]);
 
   const handleStartRetranscription = async () => {
-    if (!meetingFolderPath) {
+    if (!meetingFolderPath || !selectedModelDetails || !selectedModelAvailable) {
       setError('Meeting folder path not available');
       return;
     }
@@ -263,6 +275,11 @@ export function RetranscribeDialog({
     if (isProcessing) {
       event.preventDefault();
     }
+  };
+
+  const openWhisperSettings = () => {
+    onOpenChange(false);
+    router.push('/settings?tab=Transcriptionmodels&provider=localWhisper');
   };
 
   return (
@@ -344,13 +361,29 @@ export function RetranscribeDialog({
                 </SelectTrigger>
                 <SelectContent>
                   {availableModels.map((model) => (
-                    <SelectItem key={`${model.provider}:${model.name}`} value={`${model.provider}:${model.name}`}>
-                      {model.displayName} ({Math.round(model.size_mb)} {t("MB)")}</SelectItem>
+                    <SelectItem
+                      key={`${model.provider}:${model.name}`}
+                      value={`${model.provider}:${model.name}`}
+                      disabled={model.status !== 'Available'}
+                    >
+                      {model.displayName} ({formatModelSize(model.size_mb)})
+                      {getModelStatusText(model) ? ` — ${getModelStatusText(model)}` : ''}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
                 {t("Choose a transcription model")}</p>
+              {largeV3Model && largeV3Model.status !== 'Available' && (
+                <div className="rounded-lg border border-border bg-muted/50 p-3">
+                  <p className="text-xs text-muted-foreground">
+                    {getModelAvailabilityMessage(largeV3Model)}
+                  </p>
+                  <Button variant="outline" className="mt-2" onClick={openWhisperSettings}>
+                    {t('Download Models')}
+                  </Button>
+                </div>
+              )}
             </div>
           )}
 
@@ -389,7 +422,7 @@ export function RetranscribeDialog({
               <Button
                 onClick={handleStartRetranscription}
                 className="bg-blue-600 hover:bg-blue-700"
-                disabled={!meetingFolderPath}
+                disabled={!meetingFolderPath || !selectedModelAvailable}
               >
                 <RefreshCw className="h-4 w-4 mr-2" />
                 {t("Start Retranscription")}</Button>

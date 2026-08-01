@@ -1,22 +1,70 @@
 import { useState, useCallback, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { t } from '@/i18n';
 
 export interface RawModelInfo {
   name: string;
   size_mb: number;
-  status: 'Available' | 'Missing' | { Downloading: { progress: number } } | { Error: string };
+  status:
+    | 'Available'
+    | 'Missing'
+    | { Downloading: { progress: number } }
+    | { Error: string }
+    | { Corrupted: { file_size: number; expected_min_size: number } };
 }
+
+export type ModelOptionStatus = 'Available' | 'Missing' | 'Downloading' | 'Corrupted/Error';
 
 export interface ModelOption {
   provider: 'whisper' | 'parakeet';
   name: string;
   displayName: string;
   size_mb: number;
+  status: ModelOptionStatus;
+  downloadProgress?: number;
 }
 
 interface TranscriptModelConfig {
   provider?: string;
   model?: string;
+}
+
+function normalizeStatus(status: RawModelInfo['status']): Pick<ModelOption, 'status' | 'downloadProgress'> {
+  if (status === 'Available' || status === 'Missing') return { status };
+  if ('Downloading' in status) {
+    return { status: 'Downloading', downloadProgress: status.Downloading.progress };
+  }
+  return { status: 'Corrupted/Error' };
+}
+
+export function formatModelSize(sizeMb: number): string {
+  return sizeMb >= 1000 ? `${(sizeMb / 1000).toFixed(2)} GB` : `${sizeMb} MB`;
+}
+
+export function getModelStatusText(model: ModelOption): string | null {
+  if (model.status === 'Available') return null;
+  if (model.status === 'Missing') return t('Not downloaded');
+  if (model.status === 'Downloading') {
+    return `${t('Downloading')} ${Math.round(model.downloadProgress || 0)}%`;
+  }
+  return t('Model not available');
+}
+
+export function getModelAvailabilityMessage(model: ModelOption): string {
+  if (model.status === 'Downloading') {
+    return t('{model} is downloading ({progress}%). Please wait until download completes.', {
+      model: 'Whisper Large V3',
+      progress: Math.round(model.downloadProgress || 0),
+    });
+  }
+  if (model.status === 'Corrupted/Error') {
+    return t('{model} file is corrupted. Please delete and re-download.', {
+      model: 'Whisper Large V3',
+    });
+  }
+  return t('{model} needs to be downloaded. Please download it in model settings.', {
+    model: 'Whisper Large V3',
+  });
 }
 
 /**
@@ -48,17 +96,29 @@ export function useTranscriptionModels(transcriptModelConfig: TranscriptModelCon
     // Fetch Whisper models
     try {
       const whisperModels = await invoke<RawModelInfo[]>('whisper_get_available_models');
-      const availableWhisper = whisperModels
-        .filter((m) => m.status === 'Available')
+      const visibleWhisper = whisperModels
+        .filter((m) => m.status === 'Available' || m.name === 'large-v3')
         .map((m) => ({
           provider: 'whisper' as const,
           name: m.name,
-          displayName: `🏠 Whisper: ${m.name}`,
+          displayName: m.name === 'large-v3' ? '🏠 Whisper: Large V3' : `🏠 Whisper: ${m.name}`,
           size_mb: m.size_mb,
+          ...normalizeStatus(m.status),
         }));
-      allModels.push(...availableWhisper);
+      allModels.push(...visibleWhisper);
     } catch (err) {
       console.error('Failed to fetch Whisper models:', err);
+    }
+
+    // Keep the requested local model visible even before the Whisper engine is initialized.
+    if (!allModels.some((model) => model.provider === 'whisper' && model.name === 'large-v3')) {
+      allModels.push({
+        provider: 'whisper',
+        name: 'large-v3',
+        displayName: '🏠 Whisper: Large V3',
+        size_mb: 2951,
+        status: 'Missing',
+      });
     }
 
     // Fetch Parakeet models
@@ -71,6 +131,7 @@ export function useTranscriptionModels(transcriptModelConfig: TranscriptModelCon
           name: m.name,
           displayName: `⚡ Parakeet: ${m.name}`,
           size_mb: m.size_mb,
+          status: 'Available' as const,
         }));
       allModels.push(...availableParakeet);
     } catch (err) {
@@ -87,8 +148,9 @@ export function useTranscriptionModels(transcriptModelConfig: TranscriptModelCon
     // Note: 'localWhisper' in config maps to 'whisper' provider in model list
     const configuredMatch = allModels.find(
       (m) =>
-        (configuredProvider === 'localWhisper' && m.provider === 'whisper' && m.name === configuredModel) ||
-        (configuredProvider === 'parakeet' && m.provider === 'parakeet' && m.name === configuredModel)
+        m.status === 'Available' &&
+        ((configuredProvider === 'localWhisper' && m.provider === 'whisper' && m.name === configuredModel) ||
+          (configuredProvider === 'parakeet' && m.provider === 'parakeet' && m.name === configuredModel))
     );
 
     // Only set default model if user hasn't manually selected one
@@ -96,9 +158,10 @@ export function useTranscriptionModels(transcriptModelConfig: TranscriptModelCon
       if (configuredMatch) {
         // Use the configured model if available
         setSelectedModelKey(`${configuredMatch.provider}:${configuredMatch.name}`);
-      } else if (allModels.length > 0) {
-        // Fall back to first available model
-        setSelectedModelKey(`${allModels[0].provider}:${allModels[0].name}`);
+      } else {
+        const fallback = allModels.find((m) => m.provider === 'parakeet' && m.status === 'Available')
+          || allModels.find((m) => m.status === 'Available');
+        if (fallback) setSelectedModelKey(`${fallback.provider}:${fallback.name}`);
       }
     }
 

@@ -37,7 +37,13 @@ import { useImportAudio, ImportResult } from '@/hooks/useImportAudio';
 import { useRouter } from 'next/navigation';
 import { useSidebar } from '../Sidebar/SidebarProvider';
 import { LANGUAGES } from '@/constants/languages';
-import { useTranscriptionModels, ModelOption } from '@/hooks/useTranscriptionModels';
+import {
+  formatModelSize,
+  getModelAvailabilityMessage,
+  getModelStatusText,
+  useTranscriptionModels,
+  ModelOption,
+} from '@/hooks/useTranscriptionModels';
 
 
 interface ImportAudioDialogProps {
@@ -173,6 +179,10 @@ export function ImportAudioDialog({
     return availableModels.find((m) => m.provider === provider && m.name === name);
   }, [selectedModelKey, availableModels]);
   const isParakeetModel = selectedModel?.provider === 'parakeet';
+  const selectedModelAvailable = selectedModel?.status === 'Available';
+  const largeV3Model = availableModels.find(
+    model => model.provider === 'whisper' && model.name === 'large-v3'
+  );
 
   useEffect(() => {
     if (isParakeetModel && selectedLang !== 'auto') {
@@ -188,7 +198,7 @@ export function ImportAudioDialog({
   };
 
   const handleStartImport = async () => {
-    if (!fileInfo) return;
+    if (!fileInfo || !selectedModel || !selectedModelAvailable) return;
 
     await startImport(
       fileInfo.path,
@@ -225,6 +235,11 @@ export function ImportAudioDialog({
     if (isProcessing) {
       event.preventDefault();
     }
+  };
+
+  const openWhisperSettings = () => {
+    onOpenChange(false);
+    router.push('/settings?tab=Transcriptionmodels&provider=localWhisper');
   };
 
   return (
@@ -389,11 +404,24 @@ export function ImportAudioDialog({
                                 <SelectItem
                                   key={`${model.provider}:${model.name}`}
                                   value={`${model.provider}:${model.name}`}
+                                  disabled={model.status !== 'Available'}
                                 >
-                                  {model.displayName} ({Math.round(model.size_mb)} {t("MB)")}</SelectItem>
+                                  {model.displayName} ({formatModelSize(model.size_mb)})
+                                  {getModelStatusText(model) ? ` — ${getModelStatusText(model)}` : ''}
+                                </SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
+                          {largeV3Model && largeV3Model.status !== 'Available' && (
+                            <div className="rounded-lg border border-border bg-muted/50 p-3">
+                              <p className="text-xs text-muted-foreground">
+                                {getModelAvailabilityMessage(largeV3Model)}
+                              </p>
+                              <Button variant="outline" className="mt-2" onClick={openWhisperSettings}>
+                                {t('Download Models')}
+                              </Button>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -438,7 +466,7 @@ export function ImportAudioDialog({
               <Button
                 onClick={handleStartImport}
                 className="bg-blue-600 hover:bg-blue-700"
-                disabled={!fileInfo}
+                disabled={!fileInfo || !selectedModelAvailable}
               >
                 <Upload className="h-4 w-4 mr-2" />
                 {t("Import")}</Button>
