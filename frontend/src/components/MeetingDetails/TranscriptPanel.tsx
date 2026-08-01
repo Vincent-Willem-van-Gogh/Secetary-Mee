@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Copy, Languages } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { toast } from 'sonner';
+import { SidebarToggleButton } from '@/components/Sidebar/SidebarToggleButton';
 
 interface TranscriptPanelProps {
   transcripts: Transcript[];
@@ -124,8 +125,9 @@ export function TranscriptPanel({
   return (
     <div className="hidden md:flex w-1/2 min-w-0 border-r border-gray-200 bg-white flex-col relative shrink-0">
       {/* Title area */}
-      <div className="p-4 border-b border-gray-200">
+      <div className="border-b border-gray-200 px-4 py-2">
         <div className="flex items-center gap-2">
+          <SidebarToggleButton />
           <TranscriptButtonGroup
             transcriptCount={usePagination ? (totalCount ?? convertedSegments.length) : (transcripts?.length || 0)}
             onCopyTranscript={onCopyTranscript}
@@ -141,7 +143,7 @@ export function TranscriptPanel({
             <Languages className="h-4 w-4" />
           </Button>
         </div>
-        <div className="mt-3 border-t border-gray-100 pt-2 text-xs font-medium text-gray-500">
+        <div className="flex h-7 items-end text-xs font-medium text-gray-500">
           {t('Original transcript')} · {t('Simplified Chinese')}
         </div>
       </div>

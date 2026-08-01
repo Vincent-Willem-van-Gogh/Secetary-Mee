@@ -4,6 +4,10 @@ use log::{debug, info, warn};
 use std::collections::VecDeque;
 use std::time::Duration;
 
+const VAD_SAMPLE_RATE: usize = 16_000;
+const MAX_SPEECH_SEGMENT_SAMPLES: usize = VAD_SAMPLE_RATE * 20;
+const FALLBACK_WINDOW_SAMPLES: usize = VAD_SAMPLE_RATE * 15;
+
 /// Represents a complete speech segment detected by VAD
 #[derive(Debug, Clone)]
 pub struct SpeechSegment {
@@ -24,6 +28,11 @@ pub struct ContinuousVadProcessor {
     in_speech: bool,
     processed_samples: usize,
     speech_start_sample: usize,
+    // Audio that Silero has not classified as speech. A bounded, energy-gated
+    // fallback prevents audible speech from disappearing for minutes when VAD
+    // produces a false negative.
+    fallback_audio: Vec<f32>,
+    fallback_start_sample: usize,
     // State tracking for smart logging
     last_logged_state: bool,
 }
@@ -77,6 +86,8 @@ impl ContinuousVadProcessor {
             in_speech: false,
             processed_samples: 0,
             speech_start_sample: 0,
+            fallback_audio: Vec::with_capacity(FALLBACK_WINDOW_SAMPLES),
+            fallback_start_sample: 0,
             // Initialize state tracking
             last_logged_state: false,
         })
@@ -85,13 +96,31 @@ impl ContinuousVadProcessor {
     /// Process incoming audio samples and return any complete speech segments
     /// Handles resampling from input sample rate to 16kHz for VAD processing
     pub fn process_audio(&mut self, samples: &[f32]) -> Result<Vec<SpeechSegment>> {
-        // Resample to 16kHz if needed
         let resampled_audio = if self.sample_rate == 16000 {
             samples.to_vec()
         } else {
             self.resample_to_16k(samples)?
         };
 
+        self.process_resampled_audio(&resampled_audio)
+    }
+
+    /// Returns the same 16 kHz mono samples consumed by VAD so optional preview
+    /// engines can observe them without resampling or touching final transcripts.
+    pub fn process_audio_with_resampled(
+        &mut self,
+        samples: &[f32],
+    ) -> Result<(Vec<SpeechSegment>, Vec<f32>)> {
+        let resampled_audio = if self.sample_rate == 16000 {
+            samples.to_vec()
+        } else {
+            self.resample_to_16k(samples)?
+        };
+        let segments = self.process_resampled_audio(&resampled_audio)?;
+        Ok((segments, resampled_audio))
+    }
+
+    fn process_resampled_audio(&mut self, resampled_audio: &[f32]) -> Result<Vec<SpeechSegment>> {
         self.buffer.extend_from_slice(&resampled_audio);
         let mut completed_segments = Vec::new();
 
@@ -201,6 +230,8 @@ impl ContinuousVadProcessor {
             self.in_speech = false;
         }
 
+        self.emit_fallback_if_audible(true);
+
         // Extract all remaining segments
         while let Some(segment) = self.speech_segments.pop_front() {
             completed_segments.push(segment);
@@ -239,6 +270,8 @@ impl ContinuousVadProcessor {
                     // Use 16000 (VAD processing rate) since processed_samples counts 16kHz samples
                     self.speech_start_sample = self.processed_samples + (timestamp_ms * 16000 / 1000);
                     self.current_speech.clear();
+                    self.fallback_audio.clear();
+                    self.fallback_start_sample = self.processed_samples + chunk.len();
                 }
                 VadTransition::SpeechEnd { start_timestamp_ms, end_timestamp_ms, samples } => {
                     // Only log if we were previously in speech state
@@ -270,6 +303,8 @@ impl ContinuousVadProcessor {
                     }
 
                     self.current_speech.clear();
+                    self.fallback_audio.clear();
+                    self.fallback_start_sample = self.processed_samples;
                 }
             }
         }
@@ -277,11 +312,78 @@ impl ContinuousVadProcessor {
         // Accumulate speech if we're currently in a speech state
         if self.in_speech {
             self.current_speech.extend_from_slice(chunk);
+            self.fallback_audio.clear();
+
+            // A missing SpeechEnd used to keep the formal transcript frozen
+            // indefinitely. Split long active speech while preserving the VAD
+            // session, so the next chunk can continue normally.
+            if self.current_speech.len() >= MAX_SPEECH_SEGMENT_SAMPLES {
+                let end_sample = self.processed_samples + chunk.len();
+                let start_sample = end_sample.saturating_sub(self.current_speech.len());
+                self.speech_segments.push_back(SpeechSegment {
+                    samples: std::mem::take(&mut self.current_speech),
+                    start_timestamp_ms: start_sample as f64 / 16.0,
+                    end_timestamp_ms: end_sample as f64 / 16.0,
+                    confidence: 0.7,
+                });
+                crate::audio::transcription_diagnostics::record("vad_forced_split", serde_json::json!({
+                    "duration_ms": 20_000,
+                }));
+                self.speech_start_sample = end_sample;
+                self.in_speech = false;
+                self.last_logged_state = false;
+                self.session.reset();
+                warn!("VAD: Forced a 20s segment because SpeechEnd was not received");
+            }
+        } else {
+            if self.fallback_audio.is_empty() {
+                self.fallback_start_sample = self.processed_samples;
+            }
+            self.fallback_audio.extend_from_slice(chunk);
+            self.emit_fallback_if_audible(false);
         }
 
         self.processed_samples += chunk.len();
         Ok(())
     }
+
+    fn emit_fallback_if_audible(&mut self, flush: bool) {
+        if self.fallback_audio.is_empty()
+            || (!flush && self.fallback_audio.len() < FALLBACK_WINDOW_SAMPLES)
+        {
+            return;
+        }
+
+        let samples = std::mem::take(&mut self.fallback_audio);
+        let end_sample = self.fallback_start_sample + samples.len();
+        if has_audible_signal(&samples) {
+            warn!(
+                "VAD: Emitting {:.1}s audible fallback after no speech transition",
+                samples.len() as f64 / VAD_SAMPLE_RATE as f64
+            );
+            self.speech_segments.push_back(SpeechSegment {
+                samples,
+                start_timestamp_ms: self.fallback_start_sample as f64 / 16.0,
+                end_timestamp_ms: end_sample as f64 / 16.0,
+                confidence: 0.5,
+            });
+            crate::audio::transcription_diagnostics::record("vad_audible_fallback", serde_json::json!({
+                "start_ms": self.fallback_start_sample as f64 / 16.0,
+                "end_ms": end_sample as f64 / 16.0,
+                "sample_count": end_sample - self.fallback_start_sample,
+            }));
+        }
+        self.fallback_start_sample = end_sample;
+    }
+}
+
+fn has_audible_signal(samples: &[f32]) -> bool {
+    if samples.is_empty() {
+        return false;
+    }
+    let rms = (samples.iter().map(|sample| sample * sample).sum::<f32>() / samples.len() as f32).sqrt();
+    let peak = samples.iter().map(|sample| sample.abs()).fold(0.0_f32, f32::max);
+    rms >= 0.01 && peak >= 0.05
 }
 
 /// Legacy function for backward compatibility - now uses the optimized approach
@@ -411,6 +513,25 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn audible_fallback_rejects_silence_and_keeps_quiet_speech() {
+        assert!(!has_audible_signal(&vec![0.0; VAD_SAMPLE_RATE]));
+        let quiet_speech: Vec<f32> = (0..VAD_SAMPLE_RATE)
+            .map(|index| (index as f32 * 0.08).sin() * 0.06)
+            .collect();
+        assert!(has_audible_signal(&quiet_speech));
+    }
+
+    #[test]
+    fn audible_audio_cannot_wait_more_than_twenty_seconds_for_a_segment() {
+        let mut processor = ContinuousVadProcessor::new(16_000, 400).unwrap();
+        let audible: Vec<f32> = (0..VAD_SAMPLE_RATE * 21)
+            .map(|index| (index as f32 * 0.08).sin() * 0.1)
+            .collect();
+        let segments = processor.process_audio(&audible).unwrap();
+        assert!(!segments.is_empty(), "audible input must produce a bounded live segment");
+    }
 
     /// Generate synthetic speech-like audio with alternating speech/silence
     fn generate_test_audio_with_speech(duration_seconds: f32, sample_rate: u32) -> Vec<f32> {
@@ -592,4 +713,3 @@ mod tests {
         }
     }
 }
-

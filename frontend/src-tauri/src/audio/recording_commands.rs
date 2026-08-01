@@ -238,6 +238,8 @@ pub async fn start_recording_with_meeting_name<R: Runtime>(
         .await
         .map_err(|e| format!("Failed to start recording: {}", e))?;
 
+    super::transcription_diagnostics::start(manager.get_meeting_folder());
+
     // Store the manager globally to keep it alive
     {
         let mut global_manager = RECORDING_MANAGER.lock().unwrap();
@@ -409,6 +411,8 @@ pub async fn start_recording_with_devices_and_meeting<R: Runtime>(
         .await
         .map_err(|e| format!("Failed to start recording: {}", e))?;
 
+    super::transcription_diagnostics::start(manager.get_meeting_folder());
+
     // Store the manager globally to keep it alive
     {
         let mut global_manager = RECORDING_MANAGER.lock().unwrap();
@@ -534,6 +538,9 @@ pub async fn stop_recording<R: Runtime>(
         }
     }
 
+    // Draft recognition is best-effort and must never delay final transcription.
+    crate::live_preview::stop_session().await;
+
     // Step 1.5: Clean up transcript listener to release microphone
     // Unlisten transcript-update event to prevent lingering references
     {
@@ -609,6 +616,9 @@ pub async fn stop_recording<R: Runtime>(
     } else {
         info!("ℹ️ No transcription task found to wait for");
     }
+
+    let (chunks_in_queue, _, last_activity_ms) = transcription::get_worker_status();
+    super::transcription_diagnostics::finish(chunks_in_queue, last_activity_ms);
 
     // Step 3: Now safely unload Whisper model after ALL chunks are processed
     let _ = app.emit(
@@ -903,10 +913,11 @@ pub async fn is_recording() -> bool {
 
 /// Get recording statistics
 pub async fn get_transcription_status() -> TranscriptionStatus {
+    let (chunks_in_queue, is_processing, last_activity_ms) = transcription::get_worker_status();
     TranscriptionStatus {
-        chunks_in_queue: 0,
-        is_processing: IS_RECORDING.load(Ordering::SeqCst),
-        last_activity_ms: 0,
+        chunks_in_queue,
+        is_processing,
+        last_activity_ms,
     }
 }
 
@@ -924,6 +935,7 @@ pub async fn pause_recording<R: Runtime>(app: AppHandle<R>) -> Result<(), String
     let manager_guard = RECORDING_MANAGER.lock().unwrap();
     if let Some(manager) = manager_guard.as_ref() {
         manager.pause_recording().map_err(|e| e.to_string())?;
+        crate::live_preview::pause_session();
 
         // Emit pause event to frontend
         app.emit(
@@ -958,6 +970,7 @@ pub async fn resume_recording<R: Runtime>(app: AppHandle<R>) -> Result<(), Strin
     let manager_guard = RECORDING_MANAGER.lock().unwrap();
     if let Some(manager) = manager_guard.as_ref() {
         manager.resume_recording().map_err(|e| e.to_string())?;
+        crate::live_preview::resume_session();
 
         // Emit resume event to frontend
         app.emit(

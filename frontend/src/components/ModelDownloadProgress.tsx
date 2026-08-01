@@ -68,13 +68,13 @@ export function ProgressRing({ progress, size = 40, strokeWidth = 3 }: ProgressR
       <svg
         width={size}
         height={size}
-        className="transform -rotate-90"
+        className="-rotate-90 transform text-primary"
       >
         <circle
           cx={size / 2}
           cy={size / 2}
           r={radius}
-          stroke="#e5e7eb"
+          stroke="hsl(var(--border))"
           strokeWidth={strokeWidth}
           fill="transparent"
         />
@@ -82,7 +82,7 @@ export function ProgressRing({ progress, size = 40, strokeWidth = 3 }: ProgressR
           cx={size / 2}
           cy={size / 2}
           r={radius}
-          stroke="#3b82f6"
+          stroke="currentColor"
           strokeWidth={strokeWidth}
           strokeDasharray={strokeDasharray}
           strokeDashoffset={strokeDashoffset}

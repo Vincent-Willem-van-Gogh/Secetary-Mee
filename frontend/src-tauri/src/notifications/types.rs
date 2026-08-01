@@ -122,14 +122,14 @@ impl Notification {
             None => language.text("notification.recording_started_generic").to_string(),
         };
 
-        Notification::new("Meetily", body, NotificationType::RecordingStarted)
+        Notification::new("Secretary Mee", body, NotificationType::RecordingStarted)
             .with_priority(NotificationPriority::High)
             .with_timeout(NotificationTimeout::Seconds(5))
     }
 
     pub fn recording_stopped(language: UiLanguage) -> Self {
         Notification::new(
-            "Meetily",
+            "Secretary Mee",
             language.text("notification.recording_stopped"),
             NotificationType::RecordingStopped
         )
@@ -139,7 +139,7 @@ impl Notification {
 
     pub fn recording_paused(language: UiLanguage) -> Self {
         Notification::new(
-            "Meetily",
+            "Secretary Mee",
             language.text("notification.recording_paused"),
             NotificationType::RecordingPaused
         )
@@ -149,7 +149,7 @@ impl Notification {
 
     pub fn recording_resumed(language: UiLanguage) -> Self {
         Notification::new(
-            "Meetily",
+            "Secretary Mee",
             language.text("notification.recording_resumed"),
             NotificationType::RecordingResumed
         )
@@ -165,7 +165,7 @@ impl Notification {
             None => language.text("notification.transcription_complete_generic").to_string(),
         };
 
-        Notification::new("Meetily", body, NotificationType::TranscriptionComplete)
+        Notification::new("Secretary Mee", body, NotificationType::TranscriptionComplete)
             .with_priority(NotificationPriority::Normal)
             .with_timeout(NotificationTimeout::Seconds(5))
     }
@@ -185,7 +185,7 @@ impl Notification {
                 .replace("{minutes}", &minutes_until.to_string()),
         };
 
-        Notification::new("Meetily", body, NotificationType::MeetingReminder(minutes_until))
+        Notification::new("Secretary Mee", body, NotificationType::MeetingReminder(minutes_until))
             .with_priority(NotificationPriority::High)
             .with_timeout(NotificationTimeout::Seconds(10))
     }
@@ -203,7 +203,7 @@ impl Notification {
 
     pub fn test_notification(language: UiLanguage) -> Self {
         Notification::new(
-            "Meetily",
+            "Secretary Mee",
             language.text("notification.test"),
             NotificationType::Test
         )
@@ -228,7 +228,7 @@ mod tests {
             UiLanguage::SimplifiedChinese,
             "backend detail",
         );
-        assert_eq!(error.title, "Meetily 错误");
+        assert_eq!(error.title, "Secretary Mee 错误");
         assert_eq!(error.body, "backend detail");
     }
 }

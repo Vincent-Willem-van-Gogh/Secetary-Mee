@@ -3,7 +3,8 @@ import { VirtualizedTranscriptView } from '@/components/VirtualizedTranscriptVie
 import { PermissionWarning } from '@/components/PermissionWarning';
 import { Button } from '@/components/ui/button';
 import { ButtonGroup } from '@/components/ui/button-group';
-import { Copy, GlobeIcon, PanelRight } from 'lucide-react';
+import { SidebarToggleButton, wallToggleButtonClass } from '@/components/Sidebar/SidebarToggleButton';
+import { Copy, GlobeIcon, PanelRightClose, PanelRightOpen } from 'lucide-react';
 import { useTranscripts } from '@/contexts/TranscriptContext';
 import { useConfig } from '@/contexts/ConfigContext';
 import { useRecordingState } from '@/contexts/RecordingStateContext';
@@ -29,7 +30,7 @@ interface TranscriptPanelProps {
 export function TranscriptPanel({
   isProcessingStop,
   isStopping,
-  showModal
+  showModal,
 }: TranscriptPanelProps) {
   // Contexts
   const { transcripts, transcriptContainerRef, copyTranscript, copyTranslation, retryTranslation } = useTranscripts();
@@ -56,11 +57,11 @@ export function TranscriptPanel({
   );
 
   return (
-    <div ref={transcriptContainerRef} className="w-full border-r border-gray-200 bg-white flex flex-col overflow-y-auto">
+    <div ref={transcriptContainerRef} className="flex min-h-0 w-full flex-col overflow-hidden border-r bg-card text-card-foreground">
       {/* Title area - Sticky header */}
-      <div className="sticky top-0 z-10 bg-white p-4 border-gray-200">
-        <div className="flex items-center justify-between gap-3">
-          <div className="w-8" aria-hidden="true" />
+      <div className="z-10 shrink-0 border-b bg-card/85 px-4 py-[5px] backdrop-blur-xl">
+        <div className="flex h-[30px] items-center justify-between gap-3 [&_button]:h-[30px] [&_button]:min-h-[30px] [&>button]:w-[30px]">
+          <SidebarToggleButton />
           <div className="flex justify-center items-center space-x-2">
               <ButtonGroup>
                 {transcripts?.length > 0 && (
@@ -97,23 +98,17 @@ export function TranscriptPanel({
           </div>
           <Button
             type="button"
-            variant="outline"
+            variant="ghost"
             size="icon"
-            className={`h-8 w-8 rounded-lg bg-gray-50 ${showTranslation ? 'border-blue-400 bg-blue-50 text-blue-600' : ''}`}
+            className={wallToggleButtonClass}
             onClick={() => setShowTranslation(value => !value)}
             title={showTranslation ? t('Hide Chinese translation') : t('Show Chinese translation')}
             aria-label={showTranslation ? t('Hide Chinese translation') : t('Show Chinese translation')}
             aria-pressed={showTranslation}
           >
-            <PanelRight className="h-4 w-4" />
+            {showTranslation ? <PanelRightClose /> : <PanelRightOpen />}
           </Button>
         </div>
-        {showTranslation && (
-          <div className="grid grid-cols-2 mt-3 border-t border-gray-100 pt-2 text-xs font-medium text-gray-500">
-            <span className="pr-4">{t('Original transcript')}</span>
-            <span className="pl-4">{t('Simplified Chinese')}</span>
-          </div>
-        )}
       </div>
 
       {/* Permission Warning - Not needed on Linux */}
@@ -129,9 +124,9 @@ export function TranscriptPanel({
       )}
 
       {/* Transcript content */}
-      <div className="pb-20">
-        <div className="flex justify-center">
-          <div className={showTranslation ? 'w-full px-4' : 'w-2/3 max-w-[750px]'}>
+      <div className="min-h-0 flex-1 overflow-hidden">
+        <div className="flex h-full justify-center">
+          <div className={showTranslation ? 'h-full w-full px-4' : 'h-full w-2/3 max-w-[750px]'}>
             <VirtualizedTranscriptView
               segments={segments}
               isRecording={isRecording}

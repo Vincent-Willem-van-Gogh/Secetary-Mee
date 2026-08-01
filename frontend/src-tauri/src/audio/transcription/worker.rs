@@ -9,6 +9,7 @@ use log::{error, info, warn};
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter, Runtime};
 
 // Sequence counter for transcript updates
@@ -16,6 +17,44 @@ static SEQUENCE_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 // Speech detection flag - reset per recording session
 static SPEECH_DETECTED_EMITTED: AtomicBool = AtomicBool::new(false);
+static STATUS_CHUNKS_QUEUED: AtomicU64 = AtomicU64::new(0);
+static STATUS_CHUNKS_COMPLETED: AtomicU64 = AtomicU64::new(0);
+static STATUS_PROCESSING: AtomicBool = AtomicBool::new(false);
+static STATUS_LAST_ACTIVITY_MS: AtomicU64 = AtomicU64::new(0);
+
+fn now_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64
+}
+
+fn touch_status() {
+    STATUS_LAST_ACTIVITY_MS.store(now_ms(), Ordering::SeqCst);
+}
+
+fn reset_worker_status() {
+    STATUS_CHUNKS_QUEUED.store(0, Ordering::SeqCst);
+    STATUS_CHUNKS_COMPLETED.store(0, Ordering::SeqCst);
+    STATUS_PROCESSING.store(true, Ordering::SeqCst);
+    touch_status();
+}
+
+fn update_completed(completed: u64) {
+    STATUS_CHUNKS_COMPLETED.store(completed, Ordering::SeqCst);
+    touch_status();
+}
+
+pub fn get_worker_status() -> (usize, bool, u64) {
+    let queued = STATUS_CHUNKS_QUEUED.load(Ordering::SeqCst);
+    let completed = STATUS_CHUNKS_COMPLETED.load(Ordering::SeqCst);
+    let last_activity = STATUS_LAST_ACTIVITY_MS.load(Ordering::SeqCst);
+    (
+        queued.saturating_sub(completed) as usize,
+        STATUS_PROCESSING.load(Ordering::SeqCst),
+        now_ms().saturating_sub(last_activity),
+    )
+}
 
 /// Reset the speech detected flag for a new recording session
 pub fn reset_speech_detected_flag() {
@@ -47,6 +86,7 @@ pub fn start_transcription_task<R: Runtime>(
     transcription_receiver: tokio::sync::mpsc::UnboundedReceiver<AudioChunk>,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
+        reset_worker_status();
         info!("🚀 Starting optimized parallel transcription task - guaranteeing zero chunk loss");
 
         // Initialize transcription engine (Whisper or Parakeet based on config)
@@ -59,6 +99,8 @@ pub fn start_transcription_task<R: Runtime>(
                     "userMessage": "Recording failed: Unable to initialize speech recognition. Please check your model settings.",
                     "actionable": true
                 }));
+                STATUS_PROCESSING.store(false, Ordering::SeqCst);
+                touch_status();
                 return;
             }
         };
@@ -135,13 +177,20 @@ pub fn start_transcription_task<R: Runtime>(
                             // Check if model is still loaded before processing
                             if !engine_clone.is_model_loaded().await {
                                 warn!("⚠️ Worker {}: Model unloaded, but continuing to preserve chunk {}", worker_id, chunk.chunk_id);
+                                crate::audio::transcription_diagnostics::record("transcription_skipped", serde_json::json!({
+                                    "chunk_id": chunk.chunk_id,
+                                    "reason": "model_not_loaded",
+                                }));
                                 // Still count as completed even if we can't process
-                                chunks_completed_clone.fetch_add(1, Ordering::SeqCst);
+                                let completed = chunks_completed_clone.fetch_add(1, Ordering::SeqCst) + 1;
+                                update_completed(completed);
                                 continue;
                             }
 
                             let chunk_timestamp = chunk.timestamp;
                             let chunk_duration = chunk.data.len() as f64 / chunk.sample_rate as f64;
+                            let chunk_id = chunk.chunk_id;
+                            let processing_started = std::time::Instant::now();
 
                             // Transcribe with provider-agnostic approach
                             match transcribe_chunk_with_provider(
@@ -152,6 +201,12 @@ pub fn start_transcription_task<R: Runtime>(
                             .await
                             {
                                 Ok((transcript, confidence_opt, is_partial)) => {
+                                    crate::audio::transcription_diagnostics::record("transcription_completed", serde_json::json!({
+                                        "chunk_id": chunk_id,
+                                        "elapsed_ms": processing_started.elapsed().as_millis(),
+                                        "output_empty": transcript.trim().is_empty(),
+                                        "confidence": confidence_opt,
+                                    }));
                                     // Provider-aware confidence threshold
                                     let confidence_threshold = match &engine_clone {
                                         TranscriptionEngine::Whisper(_) | TranscriptionEngine::Provider(_) => 0.3,
@@ -236,17 +291,24 @@ pub fn start_transcription_task<R: Runtime>(
                                     }
                                 }
                                 Err(e) => {
+                                    crate::audio::transcription_diagnostics::record("transcription_failed", serde_json::json!({
+                                        "chunk_id": chunk_id,
+                                        "elapsed_ms": processing_started.elapsed().as_millis(),
+                                        "error": e.to_string(),
+                                    }));
                                     // Improved error handling with specific cases
                                     match e {
                                         TranscriptionError::AudioTooShort { .. } => {
                                             // Skip silently, this is expected for very short chunks
                                             info!("Worker {}: {}", worker_id, e);
-                                            chunks_completed_clone.fetch_add(1, Ordering::SeqCst);
+                                            let completed = chunks_completed_clone.fetch_add(1, Ordering::SeqCst) + 1;
+                                            update_completed(completed);
                                             continue;
                                         }
                                         TranscriptionError::ModelNotLoaded => {
                                             warn!("Worker {}: Model unloaded during transcription", worker_id);
-                                            chunks_completed_clone.fetch_add(1, Ordering::SeqCst);
+                                            let completed = chunks_completed_clone.fetch_add(1, Ordering::SeqCst) + 1;
+                                            update_completed(completed);
                                             continue;
                                         }
                                         _ => {
@@ -260,6 +322,7 @@ pub fn start_transcription_task<R: Runtime>(
                             // Mark chunk as completed
                             let completed =
                                 chunks_completed_clone.fetch_add(1, Ordering::SeqCst) + 1;
+                            update_completed(completed);
                             let queued = chunks_queued_clone.load(Ordering::SeqCst);
 
                             // PERFORMANCE: Only log progress every 5th chunk to reduce I/O overhead
@@ -324,6 +387,15 @@ pub fn start_transcription_task<R: Runtime>(
         let mut receiver = transcription_receiver;
         while let Some(chunk) = receiver.recv().await {
             let queued = chunks_queued.fetch_add(1, Ordering::SeqCst) + 1;
+            STATUS_CHUNKS_QUEUED.store(queued, Ordering::SeqCst);
+            touch_status();
+            crate::audio::transcription_diagnostics::record("transcription_queued", serde_json::json!({
+                "chunk_id": chunk.chunk_id,
+                "queued": queued,
+                "completed": chunks_completed.load(Ordering::SeqCst),
+                "start_seconds": chunk.timestamp,
+                "duration_seconds": chunk.data.len() as f64 / chunk.sample_rate as f64,
+            }));
             info!(
                 "📥 Dispatching chunk {} to workers (total queued: {})",
                 chunk.chunk_id, queued
@@ -399,8 +471,26 @@ pub fn start_transcription_task<R: Runtime>(
             }
         }
 
+        STATUS_PROCESSING.store(false, Ordering::SeqCst);
+        touch_status();
         info!("✅ Parallel transcription task completed - all workers finished, ready for model unload");
     })
+}
+
+#[cfg(test)]
+mod status_tests {
+    use super::*;
+
+    #[test]
+    fn worker_status_reports_real_backlog() {
+        reset_worker_status();
+        STATUS_CHUNKS_QUEUED.store(4, Ordering::SeqCst);
+        update_completed(1);
+        let (queued, processing, _) = get_worker_status();
+        assert_eq!(queued, 3);
+        assert!(processing);
+        STATUS_PROCESSING.store(false, Ordering::SeqCst);
+    }
 }
 
 /// Transcribe audio chunk using the appropriate provider (Whisper, Parakeet, or trait-based)

@@ -84,7 +84,7 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
   }), [language, setLanguage]);
 
   if (!ready) {
-    return <div className="h-screen bg-gray-50" aria-hidden="true" />;
+    return <div className="h-screen bg-background" aria-hidden="true" />;
   }
 
   return (

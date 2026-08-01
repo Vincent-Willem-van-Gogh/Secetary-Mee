@@ -22,11 +22,17 @@ pub fn set_bundled_templates_dir(path: PathBuf) {
 /// - macOS: ~/Library/Application Support/Meetily/templates/
 /// - Windows: %APPDATA%\Meetily\templates\
 /// - Linux: ~/.config/Meetily/templates/
-fn get_custom_templates_dir() -> Option<PathBuf> {
+pub(crate) fn get_custom_templates_dir() -> Option<PathBuf> {
     let mut path = dirs::data_dir()?;
     path.push("Meetily");
     path.push("templates");
     Some(path)
+}
+
+pub(crate) fn is_custom_template(template_id: &str) -> bool {
+    get_custom_templates_dir()
+        .map(|dir| dir.join(format!("{}.json", template_id)).is_file())
+        .unwrap_or(false)
 }
 
 /// Load a template from the bundled resources directory

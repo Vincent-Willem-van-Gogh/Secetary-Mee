@@ -100,12 +100,12 @@ const TranscriptSegment = memo(function TranscriptSegment({
     return (
         <div
             id={`segment-${id}`}
-            className={`mb-3 ${showTranslation && !isStacked ? 'grid grid-cols-2 gap-0' : ''} ${isStacked ? 'border-b border-gray-100 pb-3' : ''}`}
+            className={`mb-3 ${showTranslation && !isStacked ? 'grid grid-cols-2 gap-0' : ''} ${isStacked ? 'border-b pb-3' : ''}`}
         >
-            <div className={`flex items-start gap-2 min-w-0 ${showTranslation && !isStacked ? 'pr-4 border-r border-gray-200' : ''}`}>
+            <div className={`flex min-w-0 items-start gap-2 ${showTranslation && !isStacked ? 'border-r pr-4' : ''}`}>
                 <Tooltip>
                     <TooltipTrigger>
-                        <span className="text-xs text-gray-400 mt-1 flex-shrink-0 min-w-[50px]">
+                        <span className="mt-1 min-w-[50px] flex-shrink-0 text-xs text-muted-foreground">
                             {formatRecordingTime(timestamp)}
                         </span>
                     </TooltipTrigger>
@@ -117,11 +117,11 @@ const TranscriptSegment = memo(function TranscriptSegment({
                 </Tooltip>
                 <div className="flex-1">
                     {isStreaming ? (
-                        <div className="bg-gray-100 border border-gray-200 rounded-lg px-3 py-2">
-                            <p className="text-base text-gray-800 leading-relaxed">{displayText}</p>
+                        <div className="rounded-lg border bg-secondary px-3 py-2">
+                            <p className="text-base leading-relaxed text-foreground">{displayText}</p>
                         </div>
                     ) : (
-                        <p className="text-base text-gray-800 leading-relaxed">{displayText}</p>
+                        <p className="text-base leading-relaxed text-foreground">{displayText}</p>
                     )}
                 </div>
             </div>
@@ -133,17 +133,17 @@ const TranscriptSegment = memo(function TranscriptSegment({
                         exit={isStacked ? { opacity: 0, y: 4 } : { opacity: 0, x: 20 }}
                         transition={{ duration: 0.22 }}
                         className={isStacked
-                            ? 'ml-[58px] mt-2 min-w-0 rounded-lg border border-blue-100 bg-blue-50/60 px-3 py-2'
-                            : 'flex items-start gap-2 min-w-0 pl-4'}
+                            ? 'ml-[58px] mt-2 min-w-0 rounded-lg border bg-accent/60 px-3 py-2'
+                            : 'flex min-w-0 items-start gap-2 pl-4'}
                     >
                         {!isStacked && (
-                            <span className="text-xs text-gray-400 mt-1 flex-shrink-0 min-w-[50px]">
+                            <span className="mt-1 min-w-[50px] flex-shrink-0 text-xs text-muted-foreground">
                                 {formatRecordingTime(timestamp)}
                             </span>
                         )}
                         <div className="flex-1 min-w-0">
                             {translation ? (
-                                <p className={`text-base leading-relaxed ${isStacked ? 'text-gray-700' : 'text-gray-800'}`}>{translation}</p>
+                                <p className="text-base leading-relaxed text-foreground">{translation}</p>
                             ) : translationStatus === 'error' || translationStatus === 'pending' ? (
                                 <button
                                     type="button"
@@ -288,7 +288,7 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
             {/* Recording Status Bar - Sticky at top, always visible when recording */}
             <AnimatePresence>
                 {isRecording && (
-                    <div className="sticky top-0 z-10 bg-white pb-2">
+                    <div className="sticky top-0 z-10 bg-card pb-2">
                         <RecordingStatusBar isPaused={isPaused} />
                     </div>
                 )}
@@ -301,7 +301,7 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                 <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    className="text-center text-gray-500 mt-8"
+                    className="mt-8 text-center text-muted-foreground"
                 >
                     {isRecording ? (
                         <>
@@ -317,7 +317,7 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                         </>
                     ) : (
                         <>
-                            <p className="text-lg font-semibold">{t("Welcome to meetily!")}</p>
+                            <p className="text-lg font-semibold">{t("Welcome to Secretary Mee!")}</p>
                             <p className="text-xs mt-1">{t("Start recording to see live transcription")}</p>
                         </>
                     )}

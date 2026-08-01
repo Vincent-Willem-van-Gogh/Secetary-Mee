@@ -1,7 +1,6 @@
 'use client'
 
 import './globals.css'
-import { Source_Sans_3 } from 'next/font/google'
 import Sidebar from '@/components/Sidebar'
 import { SidebarProvider } from '@/components/Sidebar/SidebarProvider'
 import MainContent from '@/components/MainContent'
@@ -25,16 +24,15 @@ import { ImportAudioDialog, ImportDropOverlay } from '@/components/ImportAudio'
 import { ImportDialogProvider } from '@/contexts/ImportDialogContext'
 import { isAudioExtension, getAudioFormatsDisplayList } from '@/constants/audioFormats'
 import { I18nProvider, t, useI18n } from '@/i18n'
+import { ThemeProvider, useTheme } from '@/theme'
 import { useRouter } from 'next/navigation'
 
-
-const sourceSans3 = Source_Sans_3({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
-  variable: '--font-source-sans-3',
-})
-
 let translationModelWarningShown = false
+
+function ThemedToaster() {
+  const { resolvedTheme } = useTheme()
+  return <Toaster theme={resolvedTheme} position="bottom-center" richColors closeButton />
+}
 
 // Module-level component — stable reference across RootLayout re-renders.
 // Defined here (not inside RootLayout) so React never sees a new function type
@@ -290,7 +288,7 @@ function AppContent({
           </TranscriptProvider>
         </RecordingStateProvider>
       </AnalyticsProvider>
-      <Toaster position="bottom-center" richColors closeButton />
+      <ThemedToaster />
     </>
   )
 }
@@ -302,10 +300,12 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${sourceSans3.variable} font-sans antialiased`}>
-        <I18nProvider>
-          <AppContent>{children}</AppContent>
-        </I18nProvider>
+      <body className="font-sans antialiased">
+        <ThemeProvider>
+          <I18nProvider>
+            <AppContent>{children}</AppContent>
+          </I18nProvider>
+        </ThemeProvider>
       </body>
     </html>
   )

@@ -1,6 +1,6 @@
 {
     "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-    "productName": "meetily",
+    "productName": "Secretary Mee",
     "version": "0.4.0",
     "identifier": "com.meetily.ai",
     "build": {
@@ -12,12 +12,11 @@
     "app": {
         "windows": [
             {
-                "title": "meetily",
+                "title": "Secretary Mee",
                 "width": 1100,
                 "height": 700,
                 "resizable": true,
                 "fullscreen": false,
-                "theme": "Light",
                 "decorations": true
             }
         ],
@@ -88,14 +87,15 @@
         ],
         "icon": [
             "icons/icon.png",
-            "icons/app_icon.icns",
-            "icons/app_icon.ico"
+            "icons/icon.icns",
+            "icons/icon.ico"
         ],
         "resources": [
             "templates/*.json"
         ],
         "externalBin": [
             "binaries/llama-helper",
+            "binaries/sherpa-helper",
             "binaries/ffmpeg"
         ],
         "macOS": {

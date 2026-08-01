@@ -47,7 +47,7 @@ export function SetupOverviewStep() {
   return (
     <OnboardingContainer
       title={t("Setup Overview")}
-      description="Meetily requires that you download the Transcription & Summarization AI models for the software to work."
+      description="Secretary Mee requires that you download the Transcription & Summarization AI models for the software to work."
       step={2}
       totalSteps={isMac ? 4 : 3}
     >
@@ -96,7 +96,7 @@ export function SetupOverviewStep() {
             {t("Let's Go")}</Button>
           <div className="text-center">
             <a
-              href="https://github.com/Zackriya-Solutions/meeting-minutes"
+              href="https://github.com/Vincent-Willem-van-Gogh/Secetary-Mee"
               target="_blank"
               rel="noopener noreferrer"
               className="text-xs text-gray-600 hover:underline"

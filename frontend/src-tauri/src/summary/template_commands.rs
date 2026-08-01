@@ -2,6 +2,9 @@ use crate::summary::templates;
 use serde::{Deserialize, Serialize};
 use tauri::Runtime;
 use tracing::{info, warn};
+use uuid::Uuid;
+
+use super::templates::TemplateSection;
 
 /// Template metadata for UI display
 #[derive(Debug, Serialize, Deserialize)]
@@ -14,6 +17,8 @@ pub struct TemplateInfo {
 
     /// Brief description of the template's purpose
     pub description: String,
+
+    pub source: String,
 }
 
 /// Detailed template structure for preview/debugging
@@ -29,7 +34,9 @@ pub struct TemplateDetails {
     pub description: String,
 
     /// List of section titles in order
-    pub sections: Vec<String>,
+    pub sections: Vec<TemplateSection>,
+
+    pub source: String,
 }
 
 /// Lists all available templates
@@ -50,6 +57,7 @@ pub async fn api_list_templates<R: Runtime>(
     let template_infos: Vec<TemplateInfo> = templates
         .into_iter()
         .map(|(id, name, description)| TemplateInfo {
+            source: if templates::is_custom_template(&id) { "custom" } else { "built_in" }.to_string(),
             id,
             name,
             description,
@@ -77,22 +85,72 @@ pub async fn api_get_template_details<R: Runtime>(
 
     let template = templates::get_template(&template_id)?;
 
-    let section_titles: Vec<String> = template
-        .sections
-        .iter()
-        .map(|section| section.title.clone())
-        .collect();
-
     let details = TemplateDetails {
+        source: if templates::is_custom_template(&template_id) { "custom" } else { "built_in" }.to_string(),
         id: template_id,
         name: template.name,
         description: template.description,
-        sections: section_titles,
+        sections: template.sections,
     };
 
     info!("Retrieved template details for '{}'", details.name);
 
     Ok(details)
+}
+
+fn save_template_to_dir(
+    directory: &std::path::Path,
+    template_id: Option<String>,
+    template_json: &str,
+) -> Result<TemplateInfo, String> {
+    if template_json.len() > 128 * 1024 {
+        return Err("Template is too large".to_string());
+    }
+    let template = templates::validate_and_parse_template(template_json)?;
+    let id = template_id.unwrap_or_else(|| format!("custom_{}", Uuid::new_v4().simple()));
+    if !id.starts_with("custom_") || !id.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-') {
+        return Err("Invalid custom template identifier".to_string());
+    }
+
+    std::fs::create_dir_all(directory).map_err(|e| format!("Could not create templates folder: {}", e))?;
+    let target = directory.join(format!("{}.json", id));
+    let temporary = directory.join(format!(".{}.tmp", id));
+    std::fs::write(&temporary, template_json).map_err(|e| format!("Could not save template: {}", e))?;
+    if target.exists() {
+        std::fs::remove_file(&target).map_err(|e| format!("Could not replace template: {}", e))?;
+    }
+    std::fs::rename(&temporary, &target).map_err(|e| format!("Could not finish saving template: {}", e))?;
+
+    Ok(TemplateInfo {
+        id,
+        name: template.name,
+        description: template.description,
+        source: "custom".to_string(),
+    })
+}
+
+#[tauri::command]
+pub async fn api_save_custom_template(
+    template_id: Option<String>,
+    template_json: String,
+) -> Result<TemplateInfo, String> {
+    let directory = templates::get_custom_templates_dir()
+        .ok_or_else(|| "Could not resolve templates folder".to_string())?;
+    save_template_to_dir(&directory, template_id, &template_json)
+}
+
+#[tauri::command]
+pub async fn api_delete_custom_template(template_id: String) -> Result<(), String> {
+    if !template_id.starts_with("custom_") || !template_id.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-') {
+        return Err("Only custom templates can be deleted".to_string());
+    }
+    let directory = templates::get_custom_templates_dir()
+        .ok_or_else(|| "Could not resolve templates folder".to_string())?;
+    let target = directory.join(format!("{}.json", template_id));
+    if !target.is_file() {
+        return Err("Custom template not found".to_string());
+    }
+    std::fs::remove_file(target).map_err(|e| format!("Could not delete template: {}", e))
 }
 
 /// Validates a custom template JSON string
@@ -163,5 +221,15 @@ mod tests {
 
         let result = templates::validate_and_parse_template(invalid_json);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn custom_template_save_rejects_unsafe_ids_and_round_trips() {
+        let directory = tempfile::tempdir().unwrap();
+        let json = r#"{"name":"My template","description":"Test","sections":[{"title":"Summary","instruction":"Summarize","format":"paragraph"}]}"#;
+        assert!(save_template_to_dir(directory.path(), Some("../bad".into()), json).is_err());
+        let saved = save_template_to_dir(directory.path(), None, json).unwrap();
+        assert_eq!(saved.source, "custom");
+        assert!(directory.path().join(format!("{}.json", saved.id)).is_file());
     }
 }

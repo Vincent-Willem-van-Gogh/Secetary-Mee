@@ -37,24 +37,24 @@ pub struct Template {
 impl Template {
     /// Validates the template structure
     pub fn validate(&self) -> Result<(), String> {
-        if self.name.is_empty() {
+        if self.name.trim().is_empty() || self.name.chars().count() > 80 {
             return Err("Template name cannot be empty".to_string());
         }
 
-        if self.description.is_empty() {
+        if self.description.trim().is_empty() || self.description.chars().count() > 240 {
             return Err("Template description cannot be empty".to_string());
         }
 
-        if self.sections.is_empty() {
+        if self.sections.is_empty() || self.sections.len() > 20 {
             return Err("Template must have at least one section".to_string());
         }
 
         for (i, section) in self.sections.iter().enumerate() {
-            if section.title.is_empty() {
+            if section.title.trim().is_empty() || section.title.chars().count() > 80 {
                 return Err(format!("Section {} has empty title", i));
             }
 
-            if section.instruction.is_empty() {
+            if section.instruction.trim().is_empty() || section.instruction.chars().count() > 2_000 {
                 return Err(format!("Section '{}' has empty instruction", section.title));
             }
 

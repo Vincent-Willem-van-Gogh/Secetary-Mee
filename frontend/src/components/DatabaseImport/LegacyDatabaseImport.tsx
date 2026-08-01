@@ -43,7 +43,7 @@ export function LegacyDatabaseImport({ isOpen, onComplete }: LegacyDatabaseImpor
         setDetectedPath(dbPath);
         setImportState('idle');
       } else {
-        setErrorMessage('No database found at selected location. Please select the Meetily folder, backend folder, or the database file directly.');
+        setErrorMessage('No database found at selected location. Please select the previous app folder, backend folder, or the database file directly.');
         setDetectedPath(null);
         setImportState('error');
         setTimeout(() => setImportState('idle'), 3000);
@@ -120,9 +120,9 @@ export function LegacyDatabaseImport({ isOpen, onComplete }: LegacyDatabaseImpor
     <Dialog open={isOpen} onOpenChange={() => {}}>
       <DialogContent className="sm:max-w-[600px]" onPointerDownOutside={(e) => e.preventDefault()}>
         <DialogHeader>
-          <DialogTitle className="text-2xl">{t("Welcome to Meetily!")}</DialogTitle>
+          <DialogTitle className="text-2xl">{t("Welcome to Secretary Mee!")}</DialogTitle>
           <DialogDescription className="text-base pt-2">
-            {t("Do you have data from a previous Meetily installation?")}</DialogDescription>
+            {t("Do you have data from a previous installation?")}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6 py-4">
@@ -135,7 +135,7 @@ export function LegacyDatabaseImport({ isOpen, onComplete }: LegacyDatabaseImpor
           {/* Browse Section */}
           <div className="space-y-3">
             <p className="text-sm text-gray-600">
-              {t("Select your previous Meetily folder, backend directory, or database file:")}</p>
+              {t("Select your previous app folder, backend directory, or database file:")}</p>
 
             <button
               onClick={handleBrowse}

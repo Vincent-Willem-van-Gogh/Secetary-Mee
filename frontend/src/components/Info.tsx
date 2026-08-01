@@ -20,7 +20,7 @@ const Info = React.forwardRef<HTMLButtonElement, InfoProps>(({ isCollapsed }, re
               ? "bg-transparent p-2 hover:bg-gray-100 rounded-lg" 
               : "w-full px-3 py-1.5 mt-1 text-sm font-medium text-gray-700 bg-gray-200 hover:bg-gray-200 rounded-lg shadow-sm"
           }`}
-          title={t("About Meetily")}
+          title={t("About Secretary Mee")}
         >
           <InfoIcon className={`text-gray-600 ${isCollapsed ? "w-5 h-5" : "w-4 h-4"}`} />
           {!isCollapsed && (
@@ -30,7 +30,7 @@ const Info = React.forwardRef<HTMLButtonElement, InfoProps>(({ isCollapsed }, re
       </DialogTrigger>
       <DialogContent>
         <VisuallyHidden>
-          <DialogTitle>{t("About Meetily")}</DialogTitle>
+          <DialogTitle>{t("About Secretary Mee")}</DialogTitle>
         </VisuallyHidden>
         <About />
       </DialogContent>
@@ -40,4 +40,4 @@ const Info = React.forwardRef<HTMLButtonElement, InfoProps>(({ isCollapsed }, re
 
 Info.displayName = "About";
 
-export default Info; 
+export default Info;

@@ -13,6 +13,7 @@ pub mod permissions;
 // NEW: Device detection and diagnostics for adaptive buffering
 pub mod device_detection;
 pub mod diagnostics;
+pub mod transcription_diagnostics;
 pub mod ffmpeg_mixer;  // NEW: FFmpeg-style adaptive audio mixer
 
 // New simplified audio system
@@ -118,4 +119,3 @@ pub use decoder::{decode_audio_file, DecodedAudio};
 
 // Export audio constants
 pub use constants::AUDIO_EXTENSIONS;
-

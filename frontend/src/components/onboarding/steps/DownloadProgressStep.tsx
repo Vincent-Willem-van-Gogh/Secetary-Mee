@@ -429,7 +429,7 @@ export function DownloadProgressStep() {
         <div className="space-y-2">
           <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
             <div
-              className="h-full bg-gradient-to-r from-gray-700 to-gray-900 rounded-full transition-all duration-300"
+              className="h-full rounded-full bg-primary transition-all duration-300"
               style={{ width: `${state.progress}%` }}
             />
           </div>
@@ -473,7 +473,7 @@ export function DownloadProgressStep() {
   return (
     <OnboardingContainer
       title={t("Getting things ready")}
-      description="You can start using Meetily after downloading the Transcription Engine."
+      description="You can start using Secretary Mee after downloading the Transcription Engine."
       step={3}
       totalSteps={isMac ? 4 : 3}
     >

@@ -3,7 +3,8 @@ use tauri::{AppHandle, Manager, Runtime, State};
 use tauri_plugin_store::StoreExt;
 
 const STORE_FILE: &str = "ui-preferences.json";
-const STORE_KEY: &str = "ui_language";
+const LANGUAGE_STORE_KEY: &str = "ui_language";
+const THEME_STORE_KEY: &str = "ui_theme";
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum UiLanguage {
@@ -52,7 +53,7 @@ impl UiLanguage {
                 "notification.transcription_complete_generic" => "Transcription has been completed",
                 "notification.meeting_reminder" => "Meeting '{title}' starts in {minutes} minutes",
                 "notification.meeting_reminder_generic" => "Meeting starts in {minutes} minutes",
-                "notification.error_title" => "Meetily Error",
+                "notification.error_title" => "Secretary Mee Error",
                 "notification.test" => "This is a test notification to verify the system is working correctly",
                 _ => key,
             };
@@ -80,7 +81,7 @@ impl UiLanguage {
             "notification.transcription_complete_generic" => "转写已完成",
             "notification.meeting_reminder" => "会议“{title}”将在 {minutes} 分钟后开始",
             "notification.meeting_reminder_generic" => "会议将在 {minutes} 分钟后开始",
-            "notification.error_title" => "Meetily 错误",
+            "notification.error_title" => "Secretary Mee 错误",
             "notification.test" => "这是一条测试通知，用于确认通知功能正常。",
             _ => key,
         }
@@ -106,7 +107,7 @@ pub fn initialize<R: Runtime>(app: &AppHandle<R>) {
     let language = app
         .store(STORE_FILE)
         .ok()
-        .and_then(|store| store.get(STORE_KEY))
+        .and_then(|store| store.get(LANGUAGE_STORE_KEY))
         .and_then(|value| value.as_str().map(str::to_owned))
         .and_then(|value| UiLanguage::parse(&value).ok())
         .unwrap_or_default();
@@ -130,7 +131,7 @@ pub fn set_ui_language<R: Runtime>(
         .store(STORE_FILE)
         .map_err(|error| format!("Failed to open interface language store: {error}"))?;
 
-    store.set(STORE_KEY, serde_json::json!(language.code()));
+    store.set(LANGUAGE_STORE_KEY, serde_json::json!(language.code()));
     store
         .save()
         .map_err(|error| format!("Failed to save interface language: {error}"))?;
@@ -138,6 +139,58 @@ pub fn set_ui_language<R: Runtime>(
     state.set(language);
     crate::tray::update_tray_menu(&app);
     Ok(())
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum UiTheme {
+    Light,
+    Dark,
+    #[default]
+    System,
+}
+
+impl UiTheme {
+    pub fn parse(value: &str) -> Result<Self, String> {
+        match value {
+            "light" => Ok(Self::Light),
+            "dark" => Ok(Self::Dark),
+            "system" => Ok(Self::System),
+            _ => Err(format!("Unsupported interface theme: {value}")),
+        }
+    }
+
+    pub fn code(self) -> &'static str {
+        match self {
+            Self::Light => "light",
+            Self::Dark => "dark",
+            Self::System => "system",
+        }
+    }
+}
+
+#[tauri::command]
+pub fn get_ui_theme<R: Runtime>(app: AppHandle<R>) -> String {
+    app.store(STORE_FILE)
+        .ok()
+        .and_then(|store| store.get(THEME_STORE_KEY))
+        .and_then(|value| value.as_str().map(str::to_owned))
+        .and_then(|value| UiTheme::parse(&value).ok())
+        .unwrap_or_default()
+        .code()
+        .to_owned()
+}
+
+#[tauri::command]
+pub fn set_ui_theme<R: Runtime>(app: AppHandle<R>, theme: String) -> Result<(), String> {
+    let theme = UiTheme::parse(&theme)?;
+    let store = app
+        .store(STORE_FILE)
+        .map_err(|error| format!("Failed to open interface theme store: {error}"))?;
+
+    store.set(THEME_STORE_KEY, serde_json::json!(theme.code()));
+    store
+        .save()
+        .map_err(|error| format!("Failed to save interface theme: {error}"))
 }
 
 #[cfg(test)]
@@ -156,10 +209,7 @@ mod tests {
 
     #[test]
     fn translates_native_text() {
-        assert_eq!(
-            UiLanguage::SimplifiedChinese.text("tray.start"),
-            "开始录音"
-        );
+        assert_eq!(UiLanguage::SimplifiedChinese.text("tray.start"), "开始录音");
         assert_eq!(
             UiLanguage::English.text("notification.recording_stopped"),
             "Recording has been stopped and saved"
@@ -190,5 +240,14 @@ mod tests {
             assert_ne!(chinese, key);
             assert_ne!(english, chinese);
         }
+    }
+
+    #[test]
+    fn validates_supported_themes_and_defaults_to_system() {
+        assert_eq!(UiTheme::parse("light").unwrap(), UiTheme::Light);
+        assert_eq!(UiTheme::parse("dark").unwrap(), UiTheme::Dark);
+        assert_eq!(UiTheme::parse("system").unwrap(), UiTheme::System);
+        assert_eq!(UiTheme::default(), UiTheme::System);
+        assert!(UiTheme::parse("midnight").is_err());
     }
 }

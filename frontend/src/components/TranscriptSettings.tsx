@@ -10,6 +10,7 @@ import { ModelManager } from './WhisperModelManager';
 import { ParakeetModelManager } from './ParakeetModelManager';
 import { toast } from 'sonner';
 import { useConfig } from '@/contexts/ConfigContext';
+import { LivePreviewModelManager } from './LivePreviewModelManager';
 
 
 export interface TranscriptModelProps {
@@ -222,6 +223,7 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
                     )}
                 </div>
             </div>
+            <LivePreviewModelManager />
             <LiveTranslationSettings />
         </div >
     )
@@ -375,7 +377,6 @@ function LiveTranslationSettings() {
         </section>
     );
 }
-
 
 
 

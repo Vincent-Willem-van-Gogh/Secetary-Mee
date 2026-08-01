@@ -22,12 +22,16 @@ import { TranscriptRecovery } from '@/components/TranscriptRecovery';
 import { indexedDBService } from '@/services/indexedDBService';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
+import { invoke } from '@tauri-apps/api/core';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { LivePreviewModelManager, LivePreviewModelStatus } from '@/components/LivePreviewModelManager';
 
 export default function Home() {
   // Local page state (not moved to contexts)
   const [isRecording, setIsRecordingState] = useState(false);
   const [barHeights, setBarHeights] = useState(['58%', '76%', '58%']);
   const [showRecoveryDialog, setShowRecoveryDialog] = useState(false);
+  const [showLivePreviewSetup, setShowLivePreviewSetup] = useState(false);
 
   // Use contexts for state management
   const { meetingTitle } = useTranscripts();
@@ -43,6 +47,19 @@ export default function Home() {
   const { modals, messages, showModal, hideModal } = useModalState(transcriptModelConfig);
   const { isRecordingDisabled, setIsRecordingDisabled } = useRecordingStateSync(isRecording, setIsRecordingState, setIsMeetingActive);
   const { handleRecordingStart } = useRecordingStart(isRecording, setIsRecordingState, showModal);
+
+  const requestRecordingStart = async () => {
+    try {
+      const status = await invoke<LivePreviewModelStatus>('get_live_preview_model_status');
+      if (!status.ready) {
+        setShowLivePreviewSetup(true);
+        return;
+      }
+    } catch (error) {
+      console.warn('Could not check live preview model:', error);
+    }
+    await handleRecordingStart();
+  };
 
   // Get handleRecordingStop function and setIsStopping (state comes from global context)
   const { handleRecordingStop, setIsStopping } = useRecordingStop(
@@ -66,6 +83,9 @@ export default function Home() {
   useEffect(() => {
     // Track page view
     Analytics.trackPageView('home');
+    const showSetup = () => setShowLivePreviewSetup(true);
+    window.addEventListener('live-preview-model-required', showSetup);
+    return () => window.removeEventListener('live-preview-model-required', showSetup);
   }, []);
 
   // Startup recovery check
@@ -189,13 +209,31 @@ export default function Home() {
 
   // Computed values using global status
   const isProcessingStop = status === RecordingStatus.PROCESSING_TRANSCRIPTS || isProcessing;
+  const showRecordingControls = (hasMicrophone || isRecording) &&
+    status !== RecordingStatus.PROCESSING_TRANSCRIPTS &&
+    status !== RecordingStatus.SAVING;
+  const recordingControls = showRecordingControls ? (
+    <RecordingControls
+      isRecording={recordingState.isRecording}
+      onRecordingStop={(callApi = true) => handleRecordingStop(callApi)}
+      onRecordingStart={requestRecordingStart}
+      onTranscriptReceived={() => { }}
+      onStopInitiated={() => setIsStopping(true)}
+      barHeights={barHeights}
+      onTranscriptionError={(message) => showModal('errorAlert', message)}
+      isRecordingDisabled={isRecordingDisabled}
+      isParentProcessing={isProcessingStop}
+      selectedDevices={selectedDevices}
+      meetingName={meetingTitle}
+    />
+  ) : null;
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: 'easeOut' }}
-      className="flex flex-col h-screen bg-gray-50"
+      className="flex h-screen flex-col bg-background text-foreground"
     >
       {/* All Modals supported*/}
       <SettingsModals
@@ -213,7 +251,19 @@ export default function Home() {
         onDelete={deleteRecoverableMeeting}
         onLoadPreview={loadMeetingTranscripts}
       />
-      <div className="flex flex-1 overflow-hidden">
+      <Dialog open={showLivePreviewSetup} onOpenChange={setShowLivePreviewSetup}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('Download Live Preview Model')}</DialogTitle>
+            <DialogDescription>{t('The Sherpa English model is required for low-latency draft text. Your formal transcription model is unchanged.')}</DialogDescription>
+          </DialogHeader>
+          <LivePreviewModelManager onReady={() => {
+            setShowLivePreviewSetup(false);
+            void handleRecordingStart();
+          }} />
+        </DialogContent>
+      </Dialog>
+      <div className="relative grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] overflow-hidden">
         <TranscriptPanel
           isProcessingStop={isProcessingStop}
           isStopping={isStopping}
@@ -221,38 +271,16 @@ export default function Home() {
         />
 
         {/* Recording controls - only show when permissions are granted or already recording and not showing status messages */}
-        {(hasMicrophone || isRecording) &&
-          status !== RecordingStatus.PROCESSING_TRANSCRIPTS &&
-          status !== RecordingStatus.SAVING && (
-            <div className="fixed bottom-12 left-0 right-0 z-10">
-              <div
-                className="flex justify-center pl-8 transition-[margin] duration-300"
-                style={{
-                  marginLeft: sidebarCollapsed ? '4rem' : '16rem'
-                }}
-              >
-                <div className="w-2/3 max-w-[750px] flex justify-center">
-                  <div className="bg-white rounded-full shadow-lg flex items-center">
-                    <RecordingControls
-                      isRecording={recordingState.isRecording}
-                      onRecordingStop={(callApi = true) => handleRecordingStop(callApi)}
-                      onRecordingStart={handleRecordingStart}
-                      onTranscriptReceived={() => { }} // Not actually used by RecordingControls
-                      onStopInitiated={() => setIsStopping(true)}
-                      barHeights={barHeights}
-                      onTranscriptionError={(message) => {
-                        showModal('errorAlert', message);
-                      }}
-                      isRecordingDisabled={isRecordingDisabled}
-                      isParentProcessing={isProcessingStop}
-                      selectedDevices={selectedDevices}
-                      meetingName={meetingTitle}
-                    />
-                  </div>
-                </div>
-              </div>
+        {showRecordingControls && recordingState.isRecording && (
+          <div className="w-full bg-card">{recordingControls}</div>
+        )}
+        {showRecordingControls && !recordingState.isRecording && (
+          <div className="pointer-events-none absolute inset-x-0 bottom-12 z-10 flex justify-center">
+            <div className="pointer-events-auto flex items-center rounded-full border bg-card">
+              {recordingControls}
             </div>
-          )}
+          </div>
+        )}
 
         {/* Status Overlays - Processing and Saving */}
         <StatusOverlays

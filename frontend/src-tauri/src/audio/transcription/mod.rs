@@ -20,6 +20,7 @@ pub use engine::{
 };
 pub use worker::{
     start_transcription_task,
+    get_worker_status,
     reset_speech_detected_flag,
     TranscriptUpdate
 };

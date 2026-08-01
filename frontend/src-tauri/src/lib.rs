@@ -47,6 +47,7 @@ pub mod onboarding;
 pub mod openai;
 pub mod anthropic;
 pub mod groq;
+pub mod live_preview;
 pub mod openrouter;
 pub mod parakeet_engine;
 pub mod state;
@@ -83,8 +84,8 @@ struct TranscriptionStatus {
 }
 
 #[tauri::command]
-async fn start_recording<R: Runtime>(
-    app: AppHandle<R>,
+async fn start_recording(
+    app: AppHandle,
     mic_device_name: Option<String>,
     system_device_name: Option<String>,
     meeting_name: Option<String>,
@@ -100,6 +101,8 @@ async fn start_recording<R: Runtime>(
     if is_recording().await {
         return Err("Recording already in progress".to_string());
     }
+
+    live_preview::start_session(&app).await?;
 
     // Call the actual audio recording system with meeting name
     match audio::recording_commands::start_recording_with_devices_and_meeting(
@@ -118,7 +121,7 @@ async fn start_recording<R: Runtime>(
 
             // Show recording started notification through NotificationManager
             // This respects user's notification preferences
-            let notification_manager_state = app.state::<NotificationManagerState<R>>();
+            let notification_manager_state = app.state::<NotificationManagerState<tauri::Wry>>();
             if let Err(e) = notifications::commands::show_recording_started_notification(
                 &app,
                 &notification_manager_state,
@@ -137,6 +140,7 @@ async fn start_recording<R: Runtime>(
             Ok(())
         }
         Err(e) => {
+            live_preview::stop_session().await;
             log_error!("Failed to start audio recording: {}", e);
             Err(format!("Failed to start recording: {}", e))
         }
@@ -144,7 +148,7 @@ async fn start_recording<R: Runtime>(
 }
 
 #[tauri::command]
-async fn stop_recording<R: Runtime>(app: AppHandle<R>, args: RecordingArgs) -> Result<(), String> {
+async fn stop_recording(app: AppHandle, args: RecordingArgs) -> Result<(), String> {
     log_info!("Attempting to stop recording...");
 
     // Check the actual audio recording system state instead of the flag
@@ -180,7 +184,7 @@ async fn stop_recording<R: Runtime>(app: AppHandle<R>, args: RecordingArgs) -> R
 
             // Show recording stopped notification through NotificationManager
             // This respects user's notification preferences
-            let notification_manager_state = app.state::<NotificationManagerState<R>>();
+            let notification_manager_state = app.state::<NotificationManagerState<tauri::Wry>>();
             if let Err(e) = notifications::commands::show_recording_stopped_notification(
                 &app,
                 &notification_manager_state,
@@ -297,8 +301,8 @@ async fn trigger_microphone_permission() -> Result<bool, String> {
 }
 
 #[tauri::command]
-async fn start_recording_with_devices<R: Runtime>(
-    app: AppHandle<R>,
+async fn start_recording_with_devices(
+    app: AppHandle,
     mic_device_name: Option<String>,
     system_device_name: Option<String>,
 ) -> Result<(), String> {
@@ -306,8 +310,8 @@ async fn start_recording_with_devices<R: Runtime>(
 }
 
 #[tauri::command]
-async fn start_recording_with_devices_and_meeting<R: Runtime>(
-    app: AppHandle<R>,
+async fn start_recording_with_devices_and_meeting(
+    app: AppHandle,
     mic_device_name: Option<String>,
     system_device_name: Option<String>,
     meeting_name: Option<String>,
@@ -317,6 +321,8 @@ async fn start_recording_with_devices_and_meeting<R: Runtime>(
 
     // Clone meeting_name for notification use later
     let meeting_name_for_notification = meeting_name.clone();
+
+    live_preview::start_session(&app).await?;
 
     // Call the recording module functions that support meeting names
     let recording_result = match (mic_device_name.clone(), system_device_name.clone()) {
@@ -351,7 +357,7 @@ async fn start_recording_with_devices_and_meeting<R: Runtime>(
 
             // Show recording started notification through NotificationManager
             // This respects user's notification preferences
-            let notification_manager_state = app.state::<NotificationManagerState<R>>();
+            let notification_manager_state = app.state::<NotificationManagerState<tauri::Wry>>();
             if let Err(e) = notifications::commands::show_recording_started_notification(
                 &app,
                 &notification_manager_state,
@@ -368,6 +374,7 @@ async fn start_recording_with_devices_and_meeting<R: Runtime>(
             Ok(())
         }
         Err(e) => {
+            live_preview::stop_session().await;
             log_error!("Failed to start recording via tauri command: {}", e);
             Err(e)
         }
@@ -466,6 +473,9 @@ pub fn run() {
 
             // Set Parakeet models directory
             parakeet_engine::commands::set_models_directory(&_app.handle());
+
+            // Keep low-latency draft recognition isolated from Parakeet/Whisper.
+            live_preview::initialize(&_app.handle());
 
             // Initialize Parakeet engine on startup
             tauri::async_runtime::spawn(async {
@@ -585,6 +595,11 @@ pub fn run() {
             parakeet_engine::commands::parakeet_cancel_download,
             parakeet_engine::commands::parakeet_delete_corrupted_model,
             parakeet_engine::commands::open_parakeet_models_folder,
+            // Sherpa live preview model commands
+            live_preview::get_live_preview_model_status,
+            live_preview::download_live_preview_model,
+            live_preview::cancel_live_preview_model_download,
+            live_preview::delete_live_preview_model,
             // Parallel processing commands
             whisper_engine::parallel_commands::initialize_parallel_processor,
             whisper_engine::parallel_commands::start_parallel_processing,
@@ -674,6 +689,8 @@ pub fn run() {
             summary::template_commands::api_list_templates,
             summary::template_commands::api_get_template_details,
             summary::template_commands::api_validate_template,
+            summary::template_commands::api_save_custom_template,
+            summary::template_commands::api_delete_custom_template,
             // Built-in AI commands
             summary::summary_engine::commands::builtin_ai_list_models,
             summary::summary_engine::commands::builtin_ai_get_model_info,
@@ -698,6 +715,8 @@ pub fn run() {
             // Interface language commands
             ui_language::get_ui_language,
             ui_language::set_ui_language,
+            ui_language::get_ui_theme,
+            ui_language::set_ui_theme,
             translation::get_translation_settings,
             translation::save_translation_settings,
             translation::test_translation_settings,
@@ -790,6 +809,7 @@ pub fn run() {
                         if let Err(e) = summary::summary_engine::force_shutdown_sidecar().await {
                             log::error!("Failed to force shutdown sidecar: {}", e);
                         }
+                        live_preview::stop_session().await;
                     });
                     log::info!("Application cleanup complete");
                 }

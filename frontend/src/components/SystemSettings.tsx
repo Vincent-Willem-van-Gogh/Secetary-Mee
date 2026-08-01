@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Languages } from 'lucide-react';
+import { Languages, Palette } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   Select,
@@ -11,10 +11,13 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { UiLanguage, useI18n } from '@/i18n';
+import { UiTheme, useTheme } from '@/theme';
 
 export function SystemSettings() {
   const { language, setLanguage, t } = useI18n();
+  const { theme, setTheme } = useTheme();
   const [saving, setSaving] = useState(false);
+  const [savingTheme, setSavingTheme] = useState(false);
 
   const handleLanguageChange = async (next: string) => {
     if (next === language) return;
@@ -32,22 +35,38 @@ export function SystemSettings() {
     }
   };
 
+  const handleThemeChange = async (next: string) => {
+    if (next === theme) return;
+    setSavingTheme(true);
+    try {
+      await setTheme(next as UiTheme);
+    } catch (error) {
+      console.error('[SystemSettings] Failed to save interface theme:', error);
+      toast.error(t('Failed to save system appearance'), {
+        description: t('Please try again.'),
+      });
+    } finally {
+      setSavingTheme(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
-      <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+      <div className="rounded-[18px] border bg-card p-6">
         <div className="flex items-start gap-4">
-          <div className="rounded-lg bg-blue-50 p-2 text-blue-600">
+          <div className="rounded-lg bg-primary/10 p-2 text-primary">
             <Languages className="h-5 w-5" />
           </div>
           <div className="flex-1">
-            <h2 className="text-lg font-semibold text-gray-900">
+            <h2 className="text-lg font-semibold text-foreground">
               {t('System Settings')}
             </h2>
-            <div className="mt-5 max-w-md">
-              <label className="mb-2 block text-sm font-medium text-gray-900">
+            <div className="mt-5 grid max-w-3xl gap-6 md:grid-cols-2">
+              <div>
+              <label className="mb-2 block text-sm font-semibold text-foreground">
                 {t('Interface Language')}
               </label>
-              <p className="mb-3 text-sm text-gray-600">
+              <p className="mb-3 text-sm text-muted-foreground">
                 {t('Choose the language used by the application interface, tray menu, and notifications.')}
               </p>
               <Select
@@ -63,6 +82,28 @@ export function SystemSettings() {
                   <SelectItem value="zh-CN">简体中文</SelectItem>
                 </SelectContent>
               </Select>
+              </div>
+              <div>
+                <div className="mb-2 flex items-center gap-2">
+                  <Palette className="h-4 w-4 text-primary" />
+                  <label className="text-sm font-semibold text-foreground">
+                    {t('System Appearance')}
+                  </label>
+                </div>
+                <p className="mb-3 text-sm text-muted-foreground">
+                  {t('Choose how Secretary Mee looks. Follow System updates automatically.')}
+                </p>
+                <Select value={theme} onValueChange={handleThemeChange} disabled={savingTheme}>
+                  <SelectTrigger aria-label={t('System Appearance')}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="light">{t('Light')}</SelectItem>
+                    <SelectItem value="dark">{t('Dark')}</SelectItem>
+                    <SelectItem value="system">{t('Follow System')}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
         </div>

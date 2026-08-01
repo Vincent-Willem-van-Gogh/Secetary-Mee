@@ -15,6 +15,12 @@ interface UseRecordingStartReturn {
   isAutoStarting: boolean;
 }
 
+function requestLivePreviewSetup(error: unknown): boolean {
+  if (!String(error).includes('LIVE_PREVIEW_MODEL_MISSING')) return false;
+  window.dispatchEvent(new Event('live-preview-model-required'));
+  return true;
+}
+
 /**
  * Custom hook for managing recording start lifecycle.
  * Handles both manual start (button click) and auto-start (from sidebar navigation).
@@ -136,6 +142,11 @@ export function useRecordingStart(
       await showRecordingNotification();
     } catch (error) {
       console.error('Failed to start recording:', error);
+      if (requestLivePreviewSetup(error)) {
+        setStatus(RecordingStatus.IDLE);
+        setIsRecording(false);
+        return;
+      }
       setStatus(RecordingStatus.ERROR, error instanceof Error ? error.message : 'Failed to start recording');
       setIsRecording(false); // Reset state on error
       Analytics.trackButtonClick('start_recording_error', 'home_page');
@@ -206,7 +217,7 @@ export function useRecordingStart(
           } catch (error) {
             console.error('Failed to auto-start recording:', error);
             setStatus(RecordingStatus.ERROR, error instanceof Error ? error.message : 'Failed to auto-start recording');
-            alert(t('Failed to start recording. Check console for details.'));
+            if (!requestLivePreviewSetup(error)) alert(t('Failed to start recording. Check console for details.'));
             Analytics.trackButtonClick('start_recording_error', 'sidebar_auto');
           } finally {
             setIsAutoStarting(false);
@@ -293,7 +304,7 @@ export function useRecordingStart(
       } catch (error) {
         console.error('Failed to start recording from sidebar:', error);
         setStatus(RecordingStatus.ERROR, error instanceof Error ? error.message : 'Failed to start recording from sidebar');
-        alert(t('Failed to start recording. Check console for details.'));
+        if (!requestLivePreviewSetup(error)) alert(t('Failed to start recording. Check console for details.'));
         Analytics.trackButtonClick('start_recording_error', 'sidebar_direct');
       } finally {
         setIsAutoStarting(false);

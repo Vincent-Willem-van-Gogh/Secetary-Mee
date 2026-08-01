@@ -832,10 +832,19 @@ impl AudioPipeline {
                             let mixed_with_gain = mixed_clean;
 
                             // STEP 3: Send mixed audio for transcription (VAD + Whisper)
-                            match self.vad_processor.process_audio(&mixed_with_gain) {
-                                Ok(speech_segments) => {
+                            match self.vad_processor.process_audio_with_resampled(&mixed_with_gain) {
+                                Ok((speech_segments, live_preview_audio)) => {
+                                    crate::live_preview::try_send_audio(&live_preview_audio);
                                     for segment in speech_segments {
                                         let duration_ms = segment.end_timestamp_ms - segment.start_timestamp_ms;
+
+                                        crate::audio::transcription_diagnostics::record("vad_segment", serde_json::json!({
+                                            "start_ms": segment.start_timestamp_ms,
+                                            "end_ms": segment.end_timestamp_ms,
+                                            "duration_ms": duration_ms,
+                                            "sample_count": segment.samples.len(),
+                                            "confidence": segment.confidence,
+                                        }));
 
                                         if segment.samples.len() >= 800 {  // Minimum 50ms at 16kHz - matches Parakeet capability
                                             info!("📤 Sending VAD segment: {:.1}ms, {} samples",

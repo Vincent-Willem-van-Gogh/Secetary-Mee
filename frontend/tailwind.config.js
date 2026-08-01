@@ -8,15 +8,21 @@ module.exports = {
   ],
   theme: {
   	extend: {
-  		fontFamily: {
+		fontFamily: {
 			sans: [
-				'var(--font-source-sans-3)',
+				'-apple-system',
+				'BlinkMacSystemFont',
+				'SF Pro Text',
+				'Segoe UI',
 				'PingFang SC',
 				'Microsoft YaHei',
 				'system-ui',
 				'sans-serif'
 			]
   		},
+		fontWeight: {
+			medium: '600',
+		},
   		colors: {
   			background: 'hsl(var(--background))',
   			foreground: 'hsl(var(--foreground))',

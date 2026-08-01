@@ -8,6 +8,7 @@ import { ModelConfig, ModelSettingsModal } from '@/components/ModelSettingsModal
 import { SummaryLanguageSettings } from '@/components/SummaryLanguageSettings';
 import { Switch } from './ui/switch';
 import { useConfig } from '@/contexts/ConfigContext';
+import { SummaryTemplateSettings } from '@/components/SummaryTemplateSettings';
 
 interface SummaryModelSettingsProps {
   refetchTrigger?: number; // Change this to trigger refetch
@@ -136,6 +137,8 @@ export function SummaryModelSettings({ refetchTrigger }: SummaryModelSettingsPro
       </div>
 
       <SummaryLanguageSettings />
+
+      <SummaryTemplateSettings />
 
       <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
         <h3 className="text-lg font-semibold mb-4">{t("Summary Model Configuration")}</h3>

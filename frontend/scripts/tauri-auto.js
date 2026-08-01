@@ -35,11 +35,35 @@ if (process.env.TAURI_GPU_FEATURE) {
 }
 
 console.log(''); // Empty line for spacing
-
-// Platform-specific environment variables
 const platform = os.platform();
 const env = { ...process.env };
 
+// Build the isolated Sherpa sidecar expected by tauri.conf.json.
+const targetTriples = {
+  'darwin-arm64': 'aarch64-apple-darwin',
+  'win32-x64': 'x86_64-pc-windows-msvc',
+  'linux-x64': 'x86_64-unknown-linux-gnu',
+};
+const targetTriple = targetTriples[`${os.platform()}-${os.arch()}`];
+if (!targetTriple) {
+  console.error(`Unsupported Sherpa live preview target: ${os.platform()}-${os.arch()}`);
+  process.exit(1);
+}
+const workspaceRoot = path.resolve(__dirname, '../..');
+const executableSuffix = os.platform() === 'win32' ? '.exe' : '';
+try {
+  execSync('cargo build --release -p sherpa-helper', { cwd: workspaceRoot, stdio: 'inherit', env });
+  const source = path.join(workspaceRoot, 'target', 'release', `sherpa-helper${executableSuffix}`);
+  const destination = path.join(__dirname, '..', 'src-tauri', 'binaries', `sherpa-helper-${targetTriple}${executableSuffix}`);
+  fs.mkdirSync(path.dirname(destination), { recursive: true });
+  fs.copyFileSync(source, destination);
+  if (os.platform() !== 'win32') fs.chmodSync(destination, 0o755);
+} catch (err) {
+  console.error('Failed to build Sherpa live preview helper.');
+  process.exit(err.status || 1);
+}
+
+// Platform-specific environment variables
 if (platform === 'linux' && feature === 'cuda') {
   console.log('🐧 Linux/CUDA detected: Setting CMAKE flags for NVIDIA GPU');
   env.CMAKE_CUDA_ARCHITECTURES = '75';

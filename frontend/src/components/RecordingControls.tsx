@@ -11,6 +11,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import Analytics from '@/lib/analytics';
 import { useRecordingState } from '@/contexts/RecordingStateContext';
+import { LiveDraftPanel } from '@/components/LiveDraftPanel';
 
 interface RecordingControlsProps {
   isRecording: boolean;
@@ -340,6 +341,30 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
     };
   }, [onRecordingStop, onTranscriptionError]);
 
+  if (isRecording && !isProcessing) {
+    return (
+      <LiveDraftPanel
+        isPaused={isPaused}
+        isPausing={isPausing}
+        isResuming={isResuming}
+        isStopping={isStopping}
+        onPauseResume={() => {
+          if (isPaused) {
+            Analytics.trackButtonClick('resume_recording', 'live_draft_panel');
+            handleResumeRecording();
+          } else {
+            Analytics.trackButtonClick('pause_recording', 'live_draft_panel');
+            handlePauseRecording();
+          }
+        }}
+        onStop={() => {
+          Analytics.trackButtonClick('stop_recording', 'live_draft_panel');
+          handleStopRecording();
+        }}
+      />
+    );
+  }
+
   return (
     <TooltipProvider>
       <div className="flex flex-col space-y-2">
@@ -355,7 +380,7 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
                 <>
                   <button
                     onClick={handleStartRecording}
-                    className="w-10 h-10 flex items-center justify-center bg-red-500 rounded-full text-white hover:bg-red-600 transition-colors"
+                    className="w-10 h-10 flex items-center justify-center bg-primary rounded-full text-white hover:bg-primary/90 transition-colors"
                   >
                     <Mic size={16} />
                   </button>
@@ -398,7 +423,7 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
                             handleStartRecording();
                           }}
                           disabled={isStarting || isProcessing || isRecordingDisabled || isValidatingModel}
-                          className={`w-12 h-12 flex items-center justify-center ${isStarting || isProcessing || isValidatingModel ? 'bg-gray-400' : 'bg-red-500 hover:bg-red-600'
+                          className={`w-12 h-12 flex items-center justify-center ${isStarting || isProcessing || isValidatingModel ? 'bg-gray-400' : 'bg-primary hover:bg-primary/90'
                             } rounded-full text-white transition-colors relative`}
                         >
                           {isValidatingModel ? (
@@ -475,7 +500,7 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
                     {barHeights.map((height, index) => (
                       <div
                         key={index}
-                        className={`w-1 rounded-full transition-all duration-200 ${isPaused ? 'bg-orange-500' : 'bg-red-500'
+                        className={`w-1 rounded-full transition-all duration-200 ${isPaused ? 'bg-orange-500' : 'bg-primary'
                           }`}
                         style={{
                           height: isRecording && !isPaused ? height : '4px',
