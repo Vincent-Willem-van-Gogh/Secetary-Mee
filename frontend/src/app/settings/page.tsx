@@ -74,24 +74,26 @@ export default function SettingsPage() {
     <div className="flex h-screen flex-col bg-background text-foreground">
       {/* Fixed Header */}
       <div className="sticky top-0 z-10 border-b bg-background/80 backdrop-blur-xl">
-        <div className="max-w-6xl mx-auto px-8 py-6">
-          <div className="flex items-center gap-4">
-            <SidebarToggleButton />
+        <div className="mx-auto max-w-6xl px-8 py-[5px]">
+          <div className="flex h-[30px] items-center gap-4">
+            <div className="h-[30px] w-[30px] [&_button]:h-[30px] [&_button]:min-h-[30px] [&_button]:w-[30px]">
+              <SidebarToggleButton />
+            </div>
             <button
               onClick={() => router.back()}
-              className="flex min-h-11 items-center gap-2 rounded-lg px-2 text-muted-foreground transition-colors hover:bg-accent hover:text-primary active:scale-95"
+              className="flex h-[30px] min-h-[30px] items-center gap-2 rounded-lg px-2 text-base text-muted-foreground transition-colors hover:bg-accent hover:text-primary active:scale-95"
             >
               <ArrowLeft className="w-5 h-5" />
               <span>{t('Back')}</span>
             </button>
-            <h1 className="text-3xl font-semibold">{t('Settings')}</h1>
+            <h1 className="text-lg font-semibold">{t('Settings')}</h1>
           </div>
         </div>
       </div>
 
       {/* Scrollable Content */}
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-6xl mx-auto p-8 pt-6">
+        <div className="mx-auto max-w-6xl px-8 pb-8 pt-2">
           {/* Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="relative h-auto max-w-full justify-start overflow-x-auto rounded-none border-b bg-transparent p-0">
@@ -136,7 +138,7 @@ export default function SettingsPage() {
             <TabsContent value="summaryModels">
               <SummaryModelSettings />
             </TabsContent>
-            <TabsContent value="beta" className="mt-6">
+            <TabsContent value="beta">
               <BetaSettings />
             </TabsContent>
           </Tabs>
