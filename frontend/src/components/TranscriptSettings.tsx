@@ -5,7 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Input } from './ui/input';
 import { Button } from './ui/button';
 import { Label } from './ui/label';
-import { Eye, EyeOff, Lock, RefreshCw, Save, Trash2, Unlock } from 'lucide-react';
+import { RefreshCw, Save } from 'lucide-react';
 import { ModelManager } from './WhisperModelManager';
 import { ParakeetModelManager } from './ParakeetModelManager';
 import { toast } from 'sonner';
@@ -16,7 +16,7 @@ import { LivePreviewModelManager } from './LivePreviewModelManager';
 export interface TranscriptModelProps {
     provider: 'localWhisper' | 'parakeet' | 'deepgram' | 'elevenLabs' | 'groq' | 'openai';
     model: string;
-    apiKey?: string | null;
+    hasApiKey?: boolean;
 }
 
 export interface TranscriptSettingsProps {
@@ -27,10 +27,6 @@ export interface TranscriptSettingsProps {
 }
 
 export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelConfig, onModelSelect, initialProvider }: TranscriptSettingsProps) {
-    const [apiKey, setApiKey] = useState<string | null>(transcriptModelConfig.apiKey || null);
-    const [showApiKey, setShowApiKey] = useState<boolean>(false);
-    const [isApiKeyLocked, setIsApiKeyLocked] = useState<boolean>(true);
-    const [isLockButtonVibrating, setIsLockButtonVibrating] = useState<boolean>(false);
     const [uiProvider, setUiProvider] = useState<TranscriptModelProps['provider']>(transcriptModelConfig.provider);
 
     // A deep link is a display request only; it must not change the saved default provider.
@@ -38,23 +34,6 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
         setUiProvider(initialProvider ?? transcriptModelConfig.provider);
     }, [initialProvider, transcriptModelConfig.provider]);
 
-    useEffect(() => {
-        if (transcriptModelConfig.provider === 'localWhisper' || transcriptModelConfig.provider === 'parakeet') {
-            setApiKey(null);
-        }
-    }, [transcriptModelConfig.provider]);
-
-    const fetchApiKey = async (provider: string) => {
-        try {
-
-            const data = await invoke('api_get_transcript_api_key', { provider }) as string;
-
-            setApiKey(data || '');
-        } catch (err) {
-            console.error('Error fetching API key:', err);
-            setApiKey(null);
-        }
-    };
     const modelOptions = {
         localWhisper: [], // Model selection handled by ModelManager component
         parakeet: [], // Model selection handled by ParakeetModelManager component
@@ -62,14 +41,6 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
         elevenLabs: ['eleven_multilingual_v2'],
         groq: ['llama-3.3-70b-versatile'],
         openai: ['gpt-4o'],
-    };
-    const requiresApiKey = transcriptModelConfig.provider === 'deepgram' || transcriptModelConfig.provider === 'elevenLabs' || transcriptModelConfig.provider === 'openai' || transcriptModelConfig.provider === 'groq';
-
-    const handleInputClick = () => {
-        if (isApiKeyLocked) {
-            setIsLockButtonVibrating(true);
-            setTimeout(() => setIsLockButtonVibrating(false), 500);
-        }
     };
 
     const handleWhisperModelSelect = (modelName: string) => {
@@ -116,9 +87,6 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
                                 onValueChange={(value) => {
                                     const provider = value as TranscriptModelProps['provider'];
                                     setUiProvider(provider);
-                                    if (provider !== 'localWhisper' && provider !== 'parakeet') {
-                                        fetchApiKey(provider);
-                                    }
                                 }}
                             >
                                 <SelectTrigger className='focus:ring-1 focus:ring-blue-500 focus:border-blue-500'>
@@ -176,52 +144,6 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
                         </div>
                     )}
 
-
-                    {requiresApiKey && (
-                        <div>
-                            <Label className="block text-sm font-medium text-gray-700 mb-1">
-                                {t("API Key")}</Label>
-                            <div className="relative mx-1">
-                                <Input
-                                    type={showApiKey ? "text" : "password"}
-                                    className={`pr-24 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 ${isApiKeyLocked ? 'bg-gray-100 cursor-not-allowed' : ''
-                                        }`}
-                                    value={apiKey || ''}
-                                    onChange={(e) => setApiKey(e.target.value)}
-                                    disabled={isApiKeyLocked}
-                                    onClick={handleInputClick}
-                                    placeholder={t("Enter your API key")}
-                                />
-                                {isApiKeyLocked && (
-                                    <div
-                                        onClick={handleInputClick}
-                                        className="absolute inset-0 flex items-center justify-center bg-gray-100 bg-opacity-50 rounded-md cursor-not-allowed"
-                                    />
-                                )}
-                                <div className="absolute inset-y-0 right-0 pr-1 flex items-center">
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={() => setIsApiKeyLocked(!isApiKeyLocked)}
-                                        className={`transition-colors duration-200 ${isLockButtonVibrating ? 'animate-vibrate text-red-500' : ''
-                                            }`}
-                                        title={isApiKeyLocked ? "Unlock to edit" : "Lock to prevent editing"}
-                                    >
-                                        {isApiKeyLocked ? <Lock className="h-4 w-4" /> : <Unlock className="h-4 w-4" />}
-                                    </Button>
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={() => setShowApiKey(!showApiKey)}
-                                    >
-                                        {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                                    </Button>
-                                </div>
-                            </div>
-                        </div>
-                    )}
                 </div>
             </div>
             <LivePreviewModelManager />
@@ -242,8 +164,6 @@ interface TranslationSettingsData {
 function LiveTranslationSettings() {
     const { modelConfig } = useConfig();
     const [settings, setSettings] = useState<TranslationSettingsData | null>(null);
-    const [apiKey, setApiKey] = useState('');
-    const [showApiKey, setShowApiKey] = useState(false);
     const [model, setModel] = useState('llama-3.3-70b-versatile');
     const [models, setModels] = useState<string[]>(['llama-3.3-70b-versatile']);
     const [isSaving, setIsSaving] = useState(false);
@@ -269,12 +189,7 @@ function LiveTranslationSettings() {
     const save = async () => {
         setIsSaving(true);
         try {
-            await invoke('save_translation_settings', {
-                apiKey: apiKey.trim() || null,
-                model,
-                deleteKey: false,
-            });
-            setApiKey('');
+            await invoke('save_translation_settings', { model });
             await loadSettings();
             toast.success(t('Live translation settings saved and verified'));
         } catch (error) {
@@ -286,21 +201,10 @@ function LiveTranslationSettings() {
 
     const test = async () => {
         try {
-            await invoke('test_translation_settings', { apiKey: apiKey.trim() || null, model });
+            await invoke('test_translation_settings', { model });
             toast.success(t('Groq translation test succeeded'));
         } catch (error) {
             toast.error(t('Groq translation test failed'), { description: String(error) });
-        }
-    };
-
-    const deleteKey = async () => {
-        try {
-            await invoke('save_translation_settings', { apiKey: null, model, deleteKey: true });
-            setApiKey('');
-            await loadSettings();
-            toast.success(t('Groq Translation API key deleted'));
-        } catch (error) {
-            toast.error(t('Could not delete Groq Translation API key'), { description: String(error) });
         }
     };
 
@@ -322,30 +226,9 @@ function LiveTranslationSettings() {
                 </div>
             </div>
 
-            <div>
-                <Label>{t('Groq Translation API Key')}</Label>
-                <div className="flex gap-2 mt-1">
-                    <div className="relative flex-1">
-                        <Input
-                            type={showApiKey ? 'text' : 'password'}
-                            value={apiKey}
-                            onChange={event => setApiKey(event.target.value)}
-                            placeholder={settings?.has_api_key ? t('Saved key — enter a new key to replace it') : t('Enter your Groq API key')}
-                            className="pr-10"
-                        />
-                        <button
-                            type="button"
-                            onClick={() => setShowApiKey(value => !value)}
-                            className="absolute inset-y-0 right-0 px-3 text-gray-500"
-                            aria-label={showApiKey ? t('Hide API key') : t('Show API key')}
-                        >
-                            {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        </button>
-                    </div>
-                    <Button variant="outline" size="icon" onClick={deleteKey} disabled={!settings?.has_api_key} title={t('Delete saved key')} aria-label={t('Delete saved key')}>
-                        <Trash2 className="h-4 w-4" />
-                    </Button>
-                </div>
+            <div className="flex items-center justify-between rounded-[18px] border bg-card p-4">
+                <div><Label>{t('Groq Translation API Key')}</Label><p className="text-sm text-muted-foreground">{settings?.has_api_key ? t('Configured') : t('Not configured')} · {t('Groq uses the shared credential configured in API Credentials.')}</p></div>
+                <Button variant="outline" onClick={() => { window.location.href = '/settings?tab=credentials&provider=groq'; }}>{t('Manage API Credentials')}</Button>
             </div>
 
             <div>
@@ -368,15 +251,13 @@ function LiveTranslationSettings() {
             </div>
 
             <div className="flex gap-2">
-                <Button variant="outline" onClick={test} disabled={isSaving}>
+                <Button variant="outline" onClick={test} disabled={isSaving || !settings?.has_api_key}>
                     <RefreshCw className="h-4 w-4 mr-2" />{t('Test translation')}
                 </Button>
-                <Button onClick={save} disabled={isSaving}>
+                <Button onClick={save} disabled={isSaving || !settings?.has_api_key}>
                     <Save className="h-4 w-4 mr-2" />{isSaving ? t('Verifying...') : t('Save and verify')}
                 </Button>
             </div>
         </section>
     );
 }
-
-

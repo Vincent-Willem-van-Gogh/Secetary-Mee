@@ -79,17 +79,18 @@ async fn saved_translation_config(state: &AppState) -> Result<(String, Option<St
     let config = SettingsRepository::get_transcript_config(state.db_manager.pool())
         .await
         .map_err(|e| e.to_string())?;
-
-    Ok(config
-        .map(|c| (c.translation_model, c.groq_api_key))
-        .unwrap_or_else(|| (DEFAULT_TRANSLATION_MODEL.to_string(), None)))
+    let model = config
+        .map(|config| config.translation_model)
+        .unwrap_or_else(|| DEFAULT_TRANSLATION_MODEL.to_string());
+    let api_key = SettingsRepository::get_api_key(state.db_manager.pool(), "groq")
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok((model, api_key))
 }
 
 async fn persist_translation_settings(
     pool: &sqlx::SqlitePool,
     model: &str,
-    api_key: Option<&str>,
-    delete_key: bool,
 ) -> Result<(), String> {
     sqlx::query(
         "INSERT INTO transcript_settings (id, provider, model, translationModel) VALUES ('1', 'parakeet', ?, ?) ON CONFLICT(id) DO NOTHING",
@@ -105,18 +106,6 @@ async fn persist_translation_settings(
         .await
         .map_err(|e| e.to_string())?;
 
-    if delete_key {
-        sqlx::query("UPDATE transcript_settings SET groqApiKey = NULL WHERE id = '1'")
-            .execute(pool)
-            .await
-            .map_err(|e| e.to_string())?;
-    } else if let Some(key) = api_key.filter(|key| !key.trim().is_empty()) {
-        sqlx::query("UPDATE transcript_settings SET groqApiKey = ? WHERE id = '1'")
-            .bind(key.trim())
-            .execute(pool)
-            .await
-            .map_err(|e| e.to_string())?;
-    }
     Ok(())
 }
 
@@ -407,22 +396,13 @@ pub async fn list_groq_translation_models(
 #[tauri::command]
 pub async fn test_translation_settings(
     state: tauri::State<'_, AppState>,
-    api_key: Option<String>,
     model: String,
 ) -> Result<(), String> {
     if model.trim().is_empty() || model.chars().count() > 200 {
         return Err("Translation model must contain between 1 and 200 characters".to_string());
     }
-    if api_key
-        .as_ref()
-        .is_some_and(|key| key.chars().count() > 10_000)
-    {
-        return Err("Groq Translation API key is too long".to_string());
-    }
     let (_, saved_key) = saved_translation_config(&state).await?;
-    let key = api_key
-        .filter(|key| !key.trim().is_empty())
-        .or(saved_key)
+    let key = saved_key
         .ok_or_else(|| "Groq Translation API key is required".to_string())?;
     let models = fetch_groq_models(&key)
         .await
@@ -438,26 +418,15 @@ pub async fn test_translation_settings(
 #[tauri::command]
 pub async fn save_translation_settings(
     state: tauri::State<'_, AppState>,
-    api_key: Option<String>,
     model: String,
-    delete_key: bool,
 ) -> Result<(), String> {
     let model = model.trim();
     if model.is_empty() || model.chars().count() > 200 {
         return Err("Translation model must contain between 1 and 200 characters".to_string());
     }
 
-    if !delete_key {
-        test_translation_settings(state.clone(), api_key.clone(), model.to_string()).await?;
-    }
-
-    persist_translation_settings(
-        state.db_manager.pool(),
-        model,
-        api_key.as_deref(),
-        delete_key,
-    )
-    .await?;
+    test_translation_settings(state.clone(), model.to_string()).await?;
+    persist_translation_settings(state.db_manager.pool(), model).await?;
     crate::groq::groq::clear_cache();
     Ok(())
 }
@@ -598,7 +567,7 @@ mod tests {
             .execute(manager.pool())
             .await
             .unwrap();
-        persist_translation_settings(manager.pool(), "test-model", Some("secret"), false)
+        persist_translation_settings(manager.pool(), "test-model")
             .await
             .unwrap();
 
@@ -611,7 +580,7 @@ mod tests {
         assert_eq!(row.0, "localWhisper");
         assert_eq!(row.1, "large-v3");
         assert_eq!(row.2, "test-model");
-        assert_eq!(row.3.as_deref(), Some("secret"));
+        assert_eq!(row.3, None);
 
         let transcript_columns: Vec<String> = sqlx::query_scalar(
             "SELECT name FROM pragma_table_info('transcripts') WHERE name LIKE 'translation_%' ORDER BY name",

@@ -102,7 +102,6 @@ function MeetingDetailsContent() {
           provider: 'ollama',
           model: '',
           whisperModel: 'large-v3',
-          apiKey: null,
           ollamaEndpoint: null,
         });
 

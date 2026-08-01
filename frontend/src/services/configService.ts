@@ -12,16 +12,12 @@ export interface ModelConfig {
   provider: 'ollama' | 'groq' | 'claude' | 'openrouter' | 'openai' | 'builtin-ai' | 'custom-openai';
   model: string;
   whisperModel: string;
-  /**
-   * @deprecated Use providerApiKeys from ConfigContext instead.
-   * This field may contain stale data when provider changes without saving.
-   */
-  apiKey?: string | null;
+  hasApiKey?: boolean;
   ollamaEndpoint?: string | null;
   // Custom OpenAI fields (only populated when provider is 'custom-openai')
   customOpenAIEndpoint?: string | null;
   customOpenAIModel?: string | null;
-  customOpenAIApiKey?: string | null;
+  customOpenAIHasApiKey?: boolean;
   maxTokens?: number | null;
   temperature?: number | null;
   topP?: number | null;
@@ -29,7 +25,7 @@ export interface ModelConfig {
 
 export interface CustomOpenAIConfig {
   endpoint: string;
-  apiKey: string | null;
+  hasApiKey: boolean;
   model: string;
   maxTokens: number | null;
   temperature: number | null;
@@ -48,7 +44,7 @@ export interface RecordingPreferences {
 export class ConfigService {
   /**
    * Get saved transcript model configuration
-   * @returns Promise with { provider, model, apiKey }
+   * @returns model selection and safe credential status
    */
   async getTranscriptConfig(): Promise<TranscriptModelProps> {
     return invoke<TranscriptModelProps>('api_get_transcript_config');
@@ -83,10 +79,11 @@ export class ConfigService {
    * @param config - CustomOpenAIConfig to save
    * @returns Promise with result status
    */
-  async saveCustomOpenAIConfig(config: CustomOpenAIConfig): Promise<{ status: string; message: string }> {
+  async saveCustomOpenAIConfig(config: CustomOpenAIConfig & { apiKey?: string | null; deleteKey?: boolean }): Promise<{ status: string; message: string }> {
     return invoke<{ status: string; message: string }>('api_save_custom_openai_config', {
       endpoint: config.endpoint,
       apiKey: config.apiKey,
+      deleteKey: config.deleteKey,
       model: config.model,
       maxTokens: config.maxTokens,
       temperature: config.temperature,

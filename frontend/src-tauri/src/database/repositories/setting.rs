@@ -2,26 +2,6 @@ use crate::database::models::{Setting, TranscriptSetting};
 use crate::summary::CustomOpenAIConfig;
 use sqlx::SqlitePool;
 
-#[derive(serde::Deserialize, Debug)]
-pub struct SaveModelConfigRequest {
-    pub provider: String,
-    pub model: String,
-    #[serde(rename = "whisperModel")]
-    pub whisper_model: String,
-    #[serde(rename = "apiKey")]
-    pub api_key: Option<String>,
-    #[serde(rename = "ollamaEndpoint")]
-    pub ollama_endpoint: Option<String>,
-}
-
-#[derive(serde::Deserialize, Debug)]
-pub struct SaveTranscriptConfigRequest {
-    pub provider: String,
-    pub model: String,
-    #[serde(rename = "apiKey")]
-    pub api_key: Option<String>,
-}
-
 pub struct SettingsRepository;
 
 // Transcript providers: localWhisper, deepgram, elevenLabs, groq, openai
@@ -177,12 +157,14 @@ impl SettingsRepository {
         provider: &str,
         api_key: &str,
     ) -> std::result::Result<(), sqlx::Error> {
+        if provider == "groq" {
+            return Self::save_api_key(pool, provider, api_key).await;
+        }
         let api_key_column = match provider {
             "localWhisper" => "whisperApiKey",
             "parakeet" => return Ok(()), // Parakeet doesn't need an API key, return early
             "deepgram" => "deepgramApiKey",
             "elevenLabs" => "elevenLabsApiKey",
-            "groq" => "groqApiKey",
             "openai" => "openaiApiKey",
             _ => {
                 return Err(sqlx::Error::Protocol(
@@ -209,12 +191,14 @@ impl SettingsRepository {
         pool: &SqlitePool,
         provider: &str,
     ) -> std::result::Result<Option<String>, sqlx::Error> {
+        if provider == "groq" {
+            return Self::get_api_key(pool, provider).await;
+        }
         let api_key_column = match provider {
             "localWhisper" => "whisperApiKey",
             "parakeet" => return Ok(None), // Parakeet doesn't need an API key
             "deepgram" => "deepgramApiKey",
             "elevenLabs" => "elevenLabsApiKey",
-            "groq" => "groqApiKey",
             "openai" => "openaiApiKey",
             _ => {
                 return Err(sqlx::Error::Protocol(

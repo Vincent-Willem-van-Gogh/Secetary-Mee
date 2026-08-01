@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { ArrowLeft, Settings2, Mic, Database as DatabaseIcon, SparkleIcon, FlaskConical, Languages } from 'lucide-react';
+import { ArrowLeft, Settings2, Mic, Database as DatabaseIcon, SparkleIcon, FlaskConical, Languages, KeyRound } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { invoke } from '@tauri-apps/api/core';
 import { motion } from 'framer-motion';
@@ -15,6 +15,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { SystemSettings } from '@/components/SystemSettings';
 import { SidebarToggleButton } from '@/components/Sidebar/SidebarToggleButton';
 import { useI18n } from '@/i18n';
+import { CredentialSettings } from '@/components/CredentialSettings';
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -22,6 +23,7 @@ export default function SettingsPage() {
   const { language, t } = useI18n();
   const tabs = [
     { value: 'system', label: t('System'), icon: Languages },
+    { value: 'credentials', label: t('API Credentials'), icon: KeyRound },
     { value: 'general', label: t('General'), icon: Settings2 },
     { value: 'recording', label: t('Recordings'), icon: Mic },
     { value: 'Transcriptionmodels', label: t('Transcription'), icon: DatabaseIcon },
@@ -32,6 +34,7 @@ export default function SettingsPage() {
   // Animation state for tabs
   const [activeTab, setActiveTab] = useState('system');
   const [requestedTranscriptProvider, setRequestedTranscriptProvider] = useState<TranscriptModelProps['provider']>();
+  const [requestedCredentialProvider, setRequestedCredentialProvider] = useState<string | null>(null);
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const [underlineStyle, setUnderlineStyle] = useState({ left: 0, width: 0 });
 
@@ -40,6 +43,7 @@ export default function SettingsPage() {
     const requestedTab = params.get('tab');
     if (tabs.some(tab => tab.value === requestedTab)) setActiveTab(requestedTab!);
     if (params.get('provider') === 'localWhisper') setRequestedTranscriptProvider('localWhisper');
+    if (requestedTab === 'credentials') setRequestedCredentialProvider(params.get('provider'));
   }, []);
 
   // Load saved transcript configuration on mount
@@ -52,7 +56,7 @@ export default function SettingsPage() {
           setTranscriptModelConfig({
             provider: config.provider || 'localWhisper',
             model: config.model || 'large-v3',
-            apiKey: config.apiKey || null
+            hasApiKey: config.hasApiKey || false
           });
         }
       } catch (error) {
@@ -128,6 +132,9 @@ export default function SettingsPage() {
             </TabsContent>
             <TabsContent value="general">
               <PreferenceSettings />
+            </TabsContent>
+            <TabsContent value="credentials">
+              <CredentialSettings requestedProvider={requestedCredentialProvider} />
             </TabsContent>
             <TabsContent value="recording">
               <RecordingSettings />

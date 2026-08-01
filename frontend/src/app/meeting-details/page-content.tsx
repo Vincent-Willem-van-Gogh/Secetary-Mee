@@ -96,7 +96,6 @@ export default function PageContent({
         provider: config.provider,
         model: config.model,
         whisperModel: config.whisperModel,
-        apiKey: config.apiKey ?? null,
         ollamaEndpoint: config.ollamaEndpoint ?? null,
       });
 

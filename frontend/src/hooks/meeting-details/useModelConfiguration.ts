@@ -31,21 +31,9 @@ export function useModelConfiguration({ serverAddress }: UseModelConfigurationPr
             provider: data.provider,
             model: data.model,
             whisperModel: data.whisperModel,
-            hasApiKey: !!data.apiKey,
+            hasApiKey: !!data.hasApiKey,
             ollamaEndpoint: data.ollamaEndpoint || 'default'
           });
-          // Fetch API key if not included and provider requires it
-          if (data.provider !== 'ollama' && data.provider !== 'custom-openai' && !data.apiKey) {
-            try {
-              const apiKeyData = await invokeTauri('api_get_api_key', {
-                provider: data.provider
-              }) as string;
-              data.apiKey = apiKeyData;
-            } catch (err) {
-              console.error('Failed to fetch API key:', err);
-            }
-          }
-
           // Fetch custom OpenAI config if provider is custom-openai
           if (data.provider === 'custom-openai') {
             try {
@@ -54,7 +42,7 @@ export function useModelConfiguration({ serverAddress }: UseModelConfigurationPr
                 data.customOpenAIDisplayName = customConfig.displayName || null;
                 data.customOpenAIEndpoint = customConfig.endpoint || null;
                 data.customOpenAIModel = customConfig.model || null;
-                data.customOpenAIApiKey = customConfig.apiKey || null;
+                data.customOpenAIHasApiKey = customConfig.hasApiKey || false;
                 data.maxTokens = customConfig.maxTokens || null;
                 data.temperature = customConfig.temperature || null;
                 data.topP = customConfig.topP || null;
@@ -114,7 +102,6 @@ export function useModelConfiguration({ serverAddress }: UseModelConfigurationPr
         provider: configToSave.provider,
         model: configToSave.model,
         whisperModel: configToSave.whisperModel,
-        apiKey: configToSave.apiKey ?? null,
         ollamaEndpoint: configToSave.ollamaEndpoint ?? null
       };
       console.log('Saving model config with payload:', payload);
@@ -136,7 +123,6 @@ export function useModelConfiguration({ serverAddress }: UseModelConfigurationPr
         provider: payload.provider,
         model: payload.model,
         whisperModel: payload.whisperModel,
-        apiKey: payload.apiKey,
         ollamaEndpoint: payload.ollamaEndpoint,
       });
 

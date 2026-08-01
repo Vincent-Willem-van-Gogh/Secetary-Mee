@@ -69,7 +69,7 @@ const Sidebar: React.FC = () => {
     provider: 'ollama',
     model: '',
     whisperModel: '',
-    apiKey: null,
+    hasApiKey: false,
     ollamaEndpoint: null
   });
   const [transcriptModelConfig, setTranscriptModelConfig] = useState<TranscriptModelProps>({
@@ -118,17 +118,6 @@ const Sidebar: React.FC = () => {
       try {
         const data = await invoke('api_get_model_config') as any;
         if (data && data.provider !== null) {
-          // Fetch API key if not included and provider requires it
-          if (data.provider !== 'ollama' && !data.apiKey) {
-            try {
-              const apiKeyData = await invoke('api_get_api_key', {
-                provider: data.provider
-              }) as string;
-              data.apiKey = apiKeyData;
-            } catch (err) {
-              console.error('Failed to fetch API key:', err);
-            }
-          }
           setModelConfig(data);
         }
       } catch (error) {
@@ -190,7 +179,6 @@ const Sidebar: React.FC = () => {
         provider: config.provider,
         model: config.model,
         whisperModel: config.whisperModel,
-        apiKey: config.apiKey,
         ollamaEndpoint: config.ollamaEndpoint,
       });
 
@@ -216,14 +204,13 @@ const Sidebar: React.FC = () => {
       const payload = {
         provider: configToSave.provider,
         model: configToSave.model,
-        apiKey: configToSave.apiKey ?? null
+        hasApiKey: configToSave.hasApiKey ?? false
       };
       console.log('Saving transcript config with payload:', payload);
 
       await invoke('api_save_transcript_config', {
         provider: payload.provider,
         model: payload.model,
-        apiKey: payload.apiKey,
       });
 
 

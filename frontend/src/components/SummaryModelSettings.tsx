@@ -19,7 +19,7 @@ export function SummaryModelSettings({ refetchTrigger }: SummaryModelSettingsPro
     provider: 'ollama',
     model: 'llama3.2:latest',
     whisperModel: 'large-v3',
-    apiKey: null,
+    hasApiKey: false,
     ollamaEndpoint: null
   });
 
@@ -30,17 +30,6 @@ export function SummaryModelSettings({ refetchTrigger }: SummaryModelSettingsPro
     try {
       const data = await invoke('api_get_model_config') as any;
       if (data && data.provider !== null) {
-        // Fetch API key if not included and provider requires it
-        if (data.provider !== 'ollama' && data.provider !== 'builtin-ai' && !data.apiKey) {
-          try {
-            const apiKeyData = await invoke('api_get_api_key', {
-              provider: data.provider
-            }) as string;
-            data.apiKey = apiKeyData;
-          } catch (err) {
-            console.error('Failed to fetch API key:', err);
-          }
-        }
         // Fetch Custom OpenAI config if that's the active provider
         if (data.provider === 'custom-openai') {
           try {
@@ -49,7 +38,7 @@ export function SummaryModelSettings({ refetchTrigger }: SummaryModelSettingsPro
               data.customOpenAIDisplayName = customConfig.displayName || null;
               data.customOpenAIEndpoint = customConfig.endpoint || null;
               data.customOpenAIModel = customConfig.model || null;
-              data.customOpenAIApiKey = customConfig.apiKey || null;
+              data.customOpenAIHasApiKey = customConfig.hasApiKey || false;
               data.maxTokens = customConfig.maxTokens || null;
               data.temperature = customConfig.temperature || null;
               data.topP = customConfig.topP || null;
@@ -107,7 +96,6 @@ export function SummaryModelSettings({ refetchTrigger }: SummaryModelSettingsPro
         provider: config.provider,
         model: config.model,
         whisperModel: config.whisperModel,
-        apiKey: config.apiKey,
         ollamaEndpoint: config.ollamaEndpoint,
       });
 

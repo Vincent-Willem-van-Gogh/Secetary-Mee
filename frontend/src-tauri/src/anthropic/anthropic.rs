@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::RwLock;
 use std::time::{Duration, Instant};
 use tauri::command;
+use crate::{database::repositories::setting::SettingsRepository, state::AppState};
 
 /// Anthropic (Claude) model information returned to frontend
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -71,7 +72,10 @@ fn is_chat_model(model_id: &str) -> bool {
 /// # Returns
 /// Vector of available models, or fallback models on error
 #[command]
-pub async fn get_anthropic_models(api_key: Option<String>) -> Result<Vec<AnthropicModel>, String> {
+pub async fn get_anthropic_models(state: tauri::State<'_, AppState>) -> Result<Vec<AnthropicModel>, String> {
+    let api_key = SettingsRepository::get_api_key(state.db_manager.pool(), "claude")
+        .await
+        .map_err(|e| e.to_string())?;
     // Return fallback if no API key provided
     let api_key = match api_key {
         Some(key) if !key.trim().is_empty() => key.trim().to_string(),

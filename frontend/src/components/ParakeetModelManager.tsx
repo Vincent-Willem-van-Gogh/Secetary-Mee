@@ -201,7 +201,7 @@ export function ParakeetModelManager({
       await invoke('api_save_transcript_config', {
         provider: 'parakeet',
         model: modelName,
-        apiKey: null
+        hasApiKey: false
       });
     } catch (error) {
       console.error('Failed to save model selection:', error);

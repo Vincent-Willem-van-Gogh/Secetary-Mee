@@ -40,6 +40,7 @@ pub mod api;
 pub mod audio;
 pub mod config;
 pub mod console_utils;
+pub mod credentials;
 pub mod database;
 pub mod notifications;
 pub mod ollama;
@@ -690,12 +691,14 @@ pub fn run() {
             api::api_update_profile,
             api::api_get_model_config,
             api::api_save_model_config,
-            api::api_get_api_key,
+            credentials::get_cloud_credential_statuses,
+            credentials::save_cloud_credential,
+            credentials::test_cloud_credential,
+            credentials::delete_cloud_credential,
             // api::api_get_auto_generate_setting,
             // api::api_save_auto_generate_setting,
             api::api_get_transcript_config,
             api::api_save_transcript_config,
-            api::api_get_transcript_api_key,
             api::api_delete_meeting,
             api::api_get_meeting,
             api::api_get_meeting_metadata,
@@ -710,6 +713,7 @@ pub fn run() {
             api::api_save_custom_openai_config,
             api::api_get_custom_openai_config,
             api::api_test_custom_openai_connection,
+            api::api_delete_custom_openai_config,
             // Summary commands
             summary::commands::api_process_transcript,
             summary::commands::api_get_summary,
