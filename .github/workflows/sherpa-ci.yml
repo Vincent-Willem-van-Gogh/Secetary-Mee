@@ -68,7 +68,11 @@ jobs:
         run: |
           mkdir -p .ci-sherpa-model
           curl -L --fail --retry 3 -o .ci-sherpa-model/model.tar.bz2 https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-2023-06-26.tar.bz2
-          echo "639e25b578e9e997131402199419c13a941f8e4e198e2da1ce57dbf5cf401282  .ci-sherpa-model/model.tar.bz2" | shasum -a 256 -c -
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            echo "639e25b578e9e997131402199419c13a941f8e4e198e2da1ce57dbf5cf401282  .ci-sherpa-model/model.tar.bz2" | sha256sum -c -
+          else
+            echo "639e25b578e9e997131402199419c13a941f8e4e198e2da1ce57dbf5cf401282  .ci-sherpa-model/model.tar.bz2" | shasum -a 256 -c -
+          fi
           tar -xjf .ci-sherpa-model/model.tar.bz2 -C .ci-sherpa-model
           rm .ci-sherpa-model/model.tar.bz2
       - name: Recognize fixed speech sample
