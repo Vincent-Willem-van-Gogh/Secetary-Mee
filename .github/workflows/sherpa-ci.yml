@@ -47,7 +47,7 @@ jobs:
           targets: ${{ matrix.target }}
       - uses: Swatinem/rust-cache@v2
       - name: Build and test helper
-        run: cargo test --release -p sherpa-helper
+        run: cargo test --release -p sherpa-helper && cargo build --release -p sherpa-helper
       - name: Prepare Tauri sidecars
         shell: bash
         run: |
