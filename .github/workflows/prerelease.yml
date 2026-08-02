@@ -17,6 +17,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - os: macos-14
+            target: aarch64-apple-darwin
+            bundle: dmg
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             bundle: nsis
@@ -48,8 +51,14 @@ jobs:
       - run: pnpm build
         working-directory: frontend
 
-      - name: Build CPU helpers
-        run: cargo build --release -p sherpa-helper -p llama-helper --target ${{ matrix.target }}
+      - name: Build Sherpa helper
+        run: cargo build --release -p sherpa-helper --target ${{ matrix.target }}
+      - name: Build llama helper (macOS Metal)
+        if: runner.os == 'macOS'
+        run: cargo build --release -p llama-helper --features metal --target ${{ matrix.target }}
+      - name: Build llama helper (CPU)
+        if: runner.os != 'macOS'
+        run: cargo build --release -p llama-helper --target ${{ matrix.target }}
       - name: Prepare and verify real sidecars
         shell: bash
         run: |
@@ -63,7 +72,12 @@ jobs:
           done
           if cmp -s "frontend/src-tauri/binaries/sherpa-helper-${{ matrix.target }}${EXE}" "frontend/src-tauri/binaries/llama-helper-${{ matrix.target }}${EXE}"; then exit 1; fi
 
+      - name: Build unsigned macOS package
+        if: runner.os == 'macOS'
+        working-directory: frontend
+        run: pnpm tauri build --bundles ${{ matrix.bundle }} --target ${{ matrix.target }} --no-sign --ci
       - name: Build unsigned package
+        if: runner.os != 'macOS'
         working-directory: frontend
         env:
           WINDOWS_SIGNING_SKIPPED: "true"
@@ -81,6 +95,19 @@ jobs:
             find dist-extracted -type f | grep sherpa-helper
             find dist-extracted -type f | grep llama-helper
             find dist-extracted -type f | grep ffmpeg
+          elif [ "${{ runner.os }}" = "macOS" ]; then
+            PACKAGE="$(find target/${{ matrix.target }}/release/bundle/dmg -name '*.dmg' | head -1)"
+            test -n "$PACKAGE"
+            hdiutil verify "$PACKAGE"
+            MOUNT="$RUNNER_TEMP/secretary-mee-dmg"
+            mkdir -p "$MOUNT"
+            DEVICE="$(hdiutil attach -nobrowse -readonly -mountpoint "$MOUNT" "$PACKAGE" | tail -1 | awk '{print $1}')"
+            test -n "$DEVICE"
+            test -x "$MOUNT/Secretary Mee.app/Contents/MacOS/sherpa-helper"
+            test -x "$MOUNT/Secretary Mee.app/Contents/MacOS/llama-helper"
+            test -x "$MOUNT/Secretary Mee.app/Contents/MacOS/ffmpeg"
+            file "$MOUNT/Secretary Mee.app/Contents/MacOS/meetily" | grep arm64
+            hdiutil detach "$DEVICE"
           else
             PACKAGE="$(find target/${{ matrix.target }}/release/bundle/appimage -name '*.AppImage' | head -1)"
             chmod +x "$PACKAGE"
@@ -90,7 +117,8 @@ jobs:
             find squashfs-root -type f \( -name 'sherpa-helper' -o -name 'llama-helper' -o -name 'ffmpeg' \) | grep ffmpeg
           fi
           test -n "$PACKAGE"
-          cp "$PACKAGE" dist/
+          PACKAGE_NAME="$(basename "$PACKAGE" | tr ' ' '.')"
+          cp "$PACKAGE" "dist/$PACKAGE_NAME"
       - uses: actions/upload-artifact@v4
         with:
           name: secretary-mee-${{ matrix.bundle }}
@@ -119,4 +147,4 @@ jobs:
             --target "$GITHUB_SHA" \
             --prerelease \
             --title "Secretary Mee $TAG" \
-            --notes "Unsigned Windows x64 CPU NSIS and Ubuntu x64 CPU AppImage prerelease. Windows may show a SmartScreen warning. Models download after first launch. Tested automatically; Windows 10/11 and Ubuntu 22.04/24.04 recording acceptance remains required before stable release."
+            --notes "Unsigned Apple Silicon DMG, Windows x64 CPU NSIS, and Ubuntu x64 CPU AppImage prerelease. macOS users can Control-click the app and choose Open; Windows may show a SmartScreen warning. Models download after first launch. Tested automatically; Windows 10/11 and Ubuntu 22.04/24.04 recording acceptance remains required before stable release."
