@@ -114,33 +114,35 @@ export function useMeetingData({ meeting, summaryData, onMeetingUpdated }: UseMe
       } else {
         setError('Failed to save meeting summary: Unknown error');
       }
+      throw error;
     }
   }, [meeting.id, meetingTitle]);
 
-  const saveAllChanges = useCallback(async () => {
+  const saveAllChanges = useCallback(async (showSuccessToast = true): Promise<boolean> => {
     setIsSaving(true);
     try {
       // Save meeting title only if changed
       if (isTitleDirty) {
-        await handleSaveMeetingTitle();
+        const titleSaved = await handleSaveMeetingTitle();
+        if (!titleSaved) throw new Error(t('Failed to save meeting title'));
       }
 
       // Save BlockNote editor changes if dirty
       if (blockNoteSummaryRef.current?.isDirty) {
         console.log('💾 Saving BlockNote editor changes...');
         await blockNoteSummaryRef.current.saveSummary();
-      } else if (aiSummary) {
-        await handleSaveSummary(aiSummary);
       }
 
-      toast.success(t("Changes saved successfully"));
+      if (showSuccessToast) toast.success(t("Changes saved successfully"));
+      return true;
     } catch (error) {
       console.error('Failed to save changes:', error);
       toast.error(t("Failed to save changes"), { description: String(error) });
+      return false;
     } finally {
       setIsSaving(false);
     }
-  }, [isTitleDirty, handleSaveMeetingTitle, aiSummary, handleSaveSummary]);
+  }, [isTitleDirty, handleSaveMeetingTitle]);
 
   // Update meeting title from external source (e.g., AI summary)
   const updateMeetingTitle = useCallback((newTitle: string) => {

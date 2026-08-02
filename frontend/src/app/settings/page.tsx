@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { ArrowLeft, Settings2, Mic, Database as DatabaseIcon, SparkleIcon, FlaskConical, Languages, KeyRound } from 'lucide-react';
+import { ArrowLeft, Settings2, Mic, Database as DatabaseIcon, SparkleIcon, FlaskConical, KeyRound } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { invoke } from '@tauri-apps/api/core';
 import { motion } from 'framer-motion';
@@ -22,9 +22,8 @@ export default function SettingsPage() {
   const { transcriptModelConfig, setTranscriptModelConfig } = useConfig();
   const { language, t } = useI18n();
   const tabs = [
-    { value: 'system', label: t('System'), icon: Languages },
-    { value: 'credentials', label: t('API Credentials'), icon: KeyRound },
     { value: 'general', label: t('General'), icon: Settings2 },
+    { value: 'credentials', label: t('API Credentials'), icon: KeyRound },
     { value: 'recording', label: t('Recordings'), icon: Mic },
     { value: 'Transcriptionmodels', label: t('Transcription'), icon: DatabaseIcon },
     { value: 'summaryModels', label: t('Summary'), icon: SparkleIcon },
@@ -32,7 +31,7 @@ export default function SettingsPage() {
   ] as const;
 
   // Animation state for tabs
-  const [activeTab, setActiveTab] = useState('system');
+  const [activeTab, setActiveTab] = useState('general');
   const [requestedTranscriptProvider, setRequestedTranscriptProvider] = useState<TranscriptModelProps['provider']>();
   const [requestedCredentialProvider, setRequestedCredentialProvider] = useState<string | null>(null);
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -40,7 +39,12 @@ export default function SettingsPage() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const requestedTab = params.get('tab');
+    const rawTab = params.get('tab');
+    const requestedTab = rawTab === 'system' ? 'general' : rawTab;
+    if (rawTab === 'system') {
+      params.set('tab', 'general');
+      window.history.replaceState(null, '', `${window.location.pathname}?${params.toString()}`);
+    }
     if (tabs.some(tab => tab.value === requestedTab)) setActiveTab(requestedTab!);
     if (params.get('provider') === 'localWhisper') setRequestedTranscriptProvider('localWhisper');
     if (requestedTab === 'credentials') setRequestedCredentialProvider(params.get('provider'));
@@ -127,11 +131,11 @@ export default function SettingsPage() {
               />
             </TabsList>
 
-            <TabsContent value="system">
-              <SystemSettings />
-            </TabsContent>
             <TabsContent value="general">
-              <PreferenceSettings />
+              <div className="space-y-6">
+                <SystemSettings />
+                <PreferenceSettings />
+              </div>
             </TabsContent>
             <TabsContent value="credentials">
               <CredentialSettings requestedProvider={requestedCredentialProvider} />

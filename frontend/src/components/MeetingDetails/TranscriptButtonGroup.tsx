@@ -4,7 +4,7 @@ import { t } from '@/i18n';
 import { useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { ButtonGroup } from '@/components/ui/button-group';
-import { Copy, FolderOpen, RefreshCw } from 'lucide-react';
+import { Copy, RefreshCw, Save } from 'lucide-react';
 import Analytics from '@/lib/analytics';
 import { RetranscribeDialog } from './RetranscribeDialog';
 import { useConfig } from '@/contexts/ConfigContext';
@@ -13,7 +13,8 @@ import { useConfig } from '@/contexts/ConfigContext';
 interface TranscriptButtonGroupProps {
   transcriptCount: number;
   onCopyTranscript: () => void;
-  onOpenMeetingFolder: () => Promise<void>;
+  onSaveNote: () => Promise<void>;
+  isSavingNote: boolean;
   meetingId?: string;
   meetingFolderPath?: string | null;
   onRefetchTranscripts?: () => Promise<void>;
@@ -23,7 +24,8 @@ interface TranscriptButtonGroupProps {
 export function TranscriptButtonGroup({
   transcriptCount,
   onCopyTranscript,
-  onOpenMeetingFolder,
+  onSaveNote,
+  isSavingNote,
   meetingId,
   meetingFolderPath,
   onRefetchTranscripts,
@@ -60,13 +62,14 @@ export function TranscriptButtonGroup({
           variant="outline"
           className="xl:px-4"
           onClick={() => {
-            Analytics.trackButtonClick('open_recording_folder', 'meeting_details');
-            onOpenMeetingFolder();
+            Analytics.trackButtonClick('save_meeting_note', 'meeting_details');
+            onSaveNote();
           }}
-          title={t("Open Recording Folder")}
+          disabled={transcriptCount === 0 || isSavingNote}
+          title={transcriptCount === 0 ? t('No transcript available') : t('Save Note')}
         >
-          <FolderOpen className="xl:mr-2" size={18} />
-          <span className="hidden lg:inline">{t("Recording")}</span>
+          <Save className="xl:mr-2" size={18} />
+          <span className="hidden lg:inline">{isSavingNote ? t('Saving...') : t('Save Note')}</span>
         </Button>
 
         {betaFeatures.importAndRetranscribe && meetingId && meetingFolderPath && (

@@ -3,11 +3,27 @@
 import { t } from '@/i18n';
 import { useEffect, useState, useRef } from "react"
 import { Switch } from "./ui/switch"
-import { FolderOpen } from "lucide-react"
+import { FileText, FolderInput, FolderOpen, RotateCcw } from "lucide-react"
 import { invoke } from "@tauri-apps/api/core"
 import Analytics from "@/lib/analytics"
 import AnalyticsConsentSwitch from "./AnalyticsConsentSwitch"
 import { useConfig, NotificationSettings } from "@/contexts/ConfigContext"
+import { Button } from "./ui/button"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select"
+import { toast } from "sonner"
+
+type NoteExportFormat = 'markdown' | 'text';
+
+interface NoteExportPreferences {
+  folder: string;
+  customFolder: boolean;
+  format: NoteExportFormat;
+}
+
+interface NoteMigrationResult {
+  migrated: number;
+  failed: number;
+}
 
 export function PreferenceSettings() {
   const {
@@ -21,11 +37,37 @@ export function PreferenceSettings() {
   const [notificationsEnabled, setNotificationsEnabled] = useState<boolean | null>(null);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [previousNotificationsEnabled, setPreviousNotificationsEnabled] = useState<boolean | null>(null);
+  const [notePreferences, setNotePreferences] = useState<NoteExportPreferences | null>(null);
+  const [noteSettingsBusy, setNoteSettingsBusy] = useState(false);
   const hasTrackedViewRef = useRef(false);
+
+  const loadNotePreferences = async () => {
+    const preferences = await invoke<NoteExportPreferences>('get_note_export_preferences');
+    setNotePreferences(preferences);
+  };
+
+  const showMigrationResult = (result: NoteMigrationResult) => {
+    if (result.failed > 0) {
+      toast.warning(t('Some meeting notes could not be moved'), {
+        description: t('{migrated} moved, {failed} kept in their original locations.', {
+          migrated: result.migrated,
+          failed: result.failed,
+        }),
+      });
+    } else if (result.migrated > 0) {
+      toast.success(t('Meeting notes updated'), {
+        description: t('{count} exported notes were moved successfully.', { count: result.migrated }),
+      });
+    }
+  };
 
   // Lazy load preferences on mount (only loads if not already cached)
   useEffect(() => {
-    loadPreferences();
+    loadPreferences(true);
+    loadNotePreferences().catch(error => {
+      console.error('Failed to load note export preferences:', error);
+      toast.error(t('Failed to load note storage settings'), { description: String(error) });
+    });
     // Reset tracking ref on mount (every tab visit)
     hasTrackedViewRef.current = false;
   }, [loadPreferences]);
@@ -134,6 +176,48 @@ export function PreferenceSettings() {
     }
   };
 
+  const handleChooseNoteFolder = async () => {
+    setNoteSettingsBusy(true);
+    try {
+      const result = await invoke<NoteMigrationResult | null>('choose_note_export_folder');
+      if (result) {
+        await loadNotePreferences();
+        showMigrationResult(result);
+      }
+    } catch (error) {
+      toast.error(t('Failed to change note storage location'), { description: String(error) });
+    } finally {
+      setNoteSettingsBusy(false);
+    }
+  };
+
+  const handleResetNoteFolder = async () => {
+    setNoteSettingsBusy(true);
+    try {
+      const result = await invoke<NoteMigrationResult>('reset_note_export_folder');
+      await loadNotePreferences();
+      showMigrationResult(result);
+    } catch (error) {
+      toast.error(t('Failed to restore the recording folder'), { description: String(error) });
+    } finally {
+      setNoteSettingsBusy(false);
+    }
+  };
+
+  const handleNoteFormatChange = async (format: string) => {
+    if (!notePreferences || format === notePreferences.format) return;
+    setNoteSettingsBusy(true);
+    try {
+      const result = await invoke<NoteMigrationResult>('set_note_export_format', { format });
+      await loadNotePreferences();
+      showMigrationResult(result);
+    } catch (error) {
+      toast.error(t('Failed to change note format'), { description: String(error) });
+    } finally {
+      setNoteSettingsBusy(false);
+    }
+  };
+
   // Show loading only if we're actually loading and don't have cached data
   if (isLoadingPreferences && !notificationSettings && !storageLocations) {
     return <div className="max-w-2xl mx-auto p-6">{t("Loading Preferences...")}</div>
@@ -209,6 +293,61 @@ export function PreferenceSettings() {
             >
               <FolderOpen className="w-4 h-4" />
               {t("Open Folder")}</button>
+          </div>
+
+          {/* Notes Location */}
+          <div className="p-4 border rounded-lg bg-gray-50">
+            <div className="mb-2 flex items-center gap-2 font-medium">
+              <FileText className="h-4 w-4 text-primary" />
+              {t('Meeting Notes Storage')}
+            </div>
+            <div className="mb-1 break-all font-mono text-xs text-gray-600">
+              {notePreferences?.folder || t('Loading...')}
+            </div>
+            <p className="mb-3 text-xs text-gray-500">
+              {notePreferences?.customFolder
+                ? t('Using a custom folder')
+                : t('Following the meeting recordings folder')}
+            </p>
+            <div className="mb-3 max-w-xs">
+              <label className="mb-1 block text-xs font-medium text-gray-700">
+                {t('Note Format')}
+              </label>
+              <Select
+                value={notePreferences?.format || 'markdown'}
+                onValueChange={handleNoteFormatChange}
+                disabled={noteSettingsBusy || !notePreferences}
+              >
+                <SelectTrigger aria-label={t('Note Format')}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="markdown">Markdown (.md)</SelectItem>
+                  <SelectItem value="text">{t('Plain Text')} (.txt)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" onClick={handleChooseNoteFolder} disabled={noteSettingsBusy}>
+                <FolderInput className="h-4 w-4" />
+                {t('Choose Folder')}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => invoke('open_note_export_folder').catch(error => toast.error(t('Failed to open folder'), { description: String(error) }))}
+                disabled={noteSettingsBusy || !notePreferences}
+              >
+                <FolderOpen className="h-4 w-4" />
+                {t('Open Folder')}
+              </Button>
+              {notePreferences?.customFolder && (
+                <Button variant="outline" size="sm" onClick={handleResetNoteFolder} disabled={noteSettingsBusy}>
+                  <RotateCcw className="h-4 w-4" />
+                  {t('Use Recordings Folder')}
+                </Button>
+              )}
+            </div>
           </div>
         </div>
 

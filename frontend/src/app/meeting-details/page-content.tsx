@@ -19,6 +19,17 @@ import { useCopyOperations } from '@/hooks/meeting-details/useCopyOperations';
 import { useMeetingOperations } from '@/hooks/meeting-details/useMeetingOperations';
 import { useConfig } from '@/contexts/ConfigContext';
 
+interface NoteExportResult {
+  path: string;
+  format: 'markdown' | 'text';
+  updatedExisting: boolean;
+}
+
+interface NoteExportEvent {
+  meetingId: string;
+  error?: string;
+}
+
 export default function PageContent({
   meeting,
   summaryData,
@@ -57,6 +68,7 @@ export default function PageContent({
   // State
   const [customPrompt, setCustomPrompt] = useState<string>('');
   const [isRecording] = useState(false);
+  const [isSavingNote, setIsSavingNote] = useState(false);
   const [summaryResponse] = useState<SummaryResponse | null>(null);
 
   // Ref to store the modal open function from SummaryGeneratorButtonGroup
@@ -134,10 +146,44 @@ export default function PageContent({
     meeting,
   });
 
+  const handleSaveNote = async () => {
+    setIsSavingNote(true);
+    try {
+      const changesSaved = await meetingData.saveAllChanges(false);
+      if (!changesSaved) return;
+      const result = await invoke<NoteExportResult>('export_meeting_note', { meetingId: meeting.id });
+      toast.success(result.updatedExisting ? t('Meeting note updated') : t('Meeting note saved'), {
+        description: result.path,
+        action: {
+          label: t('Open Folder'),
+          onClick: () => { invoke('open_note_export_folder').catch(console.error); },
+        },
+      });
+    } catch (error) {
+      toast.error(t('Failed to save meeting note'), { description: String(error) });
+    } finally {
+      setIsSavingNote(false);
+    }
+  };
+
   // Track page view
   useEffect(() => {
     Analytics.trackPageView('meeting_details');
   }, []);
+
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    import('@tauri-apps/api/event').then(({ listen }) =>
+      listen<NoteExportEvent>('meeting-note-export-error', event => {
+        if (event.payload.meetingId === meeting.id) {
+          toast.error(t('Meeting note could not be updated'), {
+            description: event.payload.error || t('Please save the note again.'),
+          });
+        }
+      }).then(cleanup => { unlisten = cleanup; })
+    );
+    return () => unlisten?.();
+  }, [meeting.id]);
 
   // Auto-generate summary when flag is set
   useEffect(() => {
@@ -176,7 +222,8 @@ export default function PageContent({
           customPrompt={customPrompt}
           onPromptChange={setCustomPrompt}
           onCopyTranscript={copyOperations.handleCopyTranscript}
-          onOpenMeetingFolder={meetingOperations.handleOpenMeetingFolder}
+          onSaveNote={handleSaveNote}
+          isSavingNote={isSavingNote}
           isRecording={isRecording}
           disableAutoScroll={true}
           // Pagination props for efficient loading

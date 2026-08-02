@@ -49,6 +49,7 @@ pub mod openai;
 pub mod anthropic;
 pub mod groq;
 pub mod live_preview;
+pub mod note_export;
 pub mod openrouter;
 pub mod parakeet_engine;
 pub mod state;
@@ -749,6 +750,12 @@ pub fn run() {
             audio::recording_preferences::get_current_audio_backend,
             audio::recording_preferences::set_audio_backend,
             audio::recording_preferences::get_audio_backend_info,
+            note_export::get_note_export_preferences,
+            note_export::choose_note_export_folder,
+            note_export::reset_note_export_folder,
+            note_export::set_note_export_format,
+            note_export::open_note_export_folder,
+            note_export::export_meeting_note,
             // Language preference commands
             set_language_preference,
             // Interface language commands

@@ -16,7 +16,8 @@ interface TranscriptPanelProps {
   customPrompt: string;
   onPromptChange: (value: string) => void;
   onCopyTranscript: () => void;
-  onOpenMeetingFolder: () => Promise<void>;
+  onSaveNote: () => Promise<void>;
+  isSavingNote: boolean;
   isRecording: boolean;
   disableAutoScroll?: boolean;
 
@@ -40,7 +41,8 @@ export function TranscriptPanel({
   customPrompt,
   onPromptChange,
   onCopyTranscript,
-  onOpenMeetingFolder,
+  onSaveNote,
+  isSavingNote,
   isRecording,
   disableAutoScroll = false,
   usePagination = false,
@@ -131,7 +133,8 @@ export function TranscriptPanel({
           <TranscriptButtonGroup
             transcriptCount={usePagination ? (totalCount ?? convertedSegments.length) : (transcripts?.length || 0)}
             onCopyTranscript={onCopyTranscript}
-            onOpenMeetingFolder={onOpenMeetingFolder}
+            onSaveNote={onSaveNote}
+            isSavingNote={isSavingNote}
             meetingId={meetingId}
             meetingFolderPath={meetingFolderPath}
             onRefetchTranscripts={onRefetchTranscripts}

@@ -88,7 +88,7 @@ interface ConfigContextType {
   notificationSettings: NotificationSettings | null;
   storageLocations: StorageLocations | null;
   isLoadingPreferences: boolean;
-  loadPreferences: () => Promise<void>;
+  loadPreferences: (force?: boolean) => Promise<void>;
   updateNotificationSettings: (settings: NotificationSettings) => Promise<void>;
 }
 
@@ -389,9 +389,9 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // Lazy load preference settings (only loads if not already cached)
-  const loadPreferences = useCallback(async () => {
+  const loadPreferences = useCallback(async (force = false) => {
     // If already loaded, don't reload
-    if (preferencesLoadedRef.current) {
+    if (preferencesLoadedRef.current && !force) {
       return;
     }
 
@@ -415,16 +415,16 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
       }
 
       // Load storage locations
-      const [dbDir, modelsDir, recordingsDir] = await Promise.all([
+      const [dbDir, modelsDir, recordingPreferences] = await Promise.all([
         invoke<string>('get_database_directory'),
         invoke<string>('whisper_get_models_directory'),
-        invoke<string>('get_default_recordings_folder_path')
+        configService.getRecordingPreferences()
       ]);
 
       setStorageLocations({
         database: dbDir,
         models: modelsDir,
-        recordings: recordingsDir
+        recordings: recordingPreferences.save_folder
       });
 
       // Mark as loaded

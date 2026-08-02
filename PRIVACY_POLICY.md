@@ -143,4 +143,4 @@ As an open-source project under MIT license, you can:
 
 ---
 
-*This privacy policy applies to Secretary Mee v0.4.0 and later versions. For enterprise deployments, additional privacy controls may be available.*
+*This privacy policy applies to Secretary Mee v1.0.0 and later versions. For enterprise deployments, additional privacy controls may be available.*

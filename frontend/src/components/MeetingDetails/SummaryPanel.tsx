@@ -37,7 +37,7 @@ interface SummaryPanelProps {
   isTitleDirty: boolean;
   summaryRef: RefObject<BlockNoteSummaryViewRef>;
   isSaving: boolean;
-  onSaveAll: () => Promise<void>;
+  onSaveAll: () => Promise<boolean>;
   onCopySummary: () => Promise<void>;
   onOpenFolder: () => Promise<void>;
   aiSummary: Summary | null;
@@ -294,7 +294,7 @@ export function SummaryPanel({
               <SummaryUpdaterButtonGroup
                 isSaving={isSaving}
                 isDirty={isTitleDirty || (summaryRef.current?.isDirty || false)}
-                onSave={onSaveAll}
+                onSave={async () => { await onSaveAll(); }}
                 onCopy={onCopySummary}
                 onFind={() => {
                   // TODO: Implement find in summary functionality

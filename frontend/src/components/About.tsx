@@ -5,7 +5,7 @@ import Image from 'next/image';
 import AnalyticsConsentSwitch from './AnalyticsConsentSwitch';
 
 export function About() {
-    const [currentVersion, setCurrentVersion] = useState('0.4.0');
+    const [currentVersion, setCurrentVersion] = useState('1.0.0');
 
     useEffect(() => {
         getVersion().then(setCurrentVersion).catch(console.error);

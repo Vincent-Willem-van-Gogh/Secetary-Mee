@@ -192,9 +192,17 @@ pub async fn set_recording_preferences<R: Runtime>(
     app: AppHandle<R>,
     preferences: RecordingPreferences,
 ) -> Result<(), String> {
+    let previous_folder = load_recording_preferences(&app)
+        .await
+        .map(|preferences| preferences.save_folder)
+        .unwrap_or_default();
     save_recording_preferences(&app, &preferences)
         .await
-        .map_err(|e| format!("Failed to save recording preferences: {}", e))
+        .map_err(|e| format!("Failed to save recording preferences: {}", e))?;
+    if previous_folder != preferences.save_folder {
+        crate::note_export::migrate_following_recording_folder(&app).await;
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -384,4 +392,3 @@ pub async fn get_audio_backend_info() -> Result<Vec<BackendInfo>, String> {
         }])
     }
 }
-

@@ -808,7 +808,7 @@ pub async fn api_get_meeting_transcripts<R: Runtime>(
 
 #[tauri::command]
 pub async fn api_save_meeting_title<R: Runtime>(
-    _app: AppHandle<R>,
+    app: AppHandle<R>,
     state: tauri::State<'_, AppState>,
     meeting_id: String,
     title: String,
@@ -823,6 +823,7 @@ pub async fn api_save_meeting_title<R: Runtime>(
     match MeetingsRepository::update_meeting_title(pool, &meeting_id, &title).await {
         Ok(true) => {
             log_info!("Successfully saved meeting title");
+            crate::note_export::refresh_if_exported(&app, pool, &meeting_id).await;
             Ok(serde_json::json!({"message": "Meeting title saved successfully"}))
         }
         Ok(false) => {
