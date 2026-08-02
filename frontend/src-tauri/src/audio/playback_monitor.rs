@@ -161,6 +161,10 @@ mod tests {
     use super::*;
 
     #[tokio::test]
+    #[cfg_attr(
+        target_os = "windows",
+        ignore = "requires a real Windows audio endpoint; GitHub runners are headless"
+    )]
     async fn test_get_output_device() {
         let result = get_active_audio_output().await;
         assert!(result.is_ok(), "Should be able to get output device");
