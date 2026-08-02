@@ -385,7 +385,7 @@ impl AudioCapture {
     /// Process audio data directly from callback
     pub fn process_audio_data(&self, data: &[f32]) {
         // Check if still recording
-        if !self.state.is_recording() {
+        if !self.state.is_active() {
             return;
         }
 
@@ -671,7 +671,11 @@ impl AudioCapture {
             AudioError::StreamFailed
         };
 
-        self.state.report_error(audio_error);
+        if self.device_type == DeviceType::System {
+            self.state.report_warning(audio_error);
+        } else {
+            self.state.report_error(audio_error);
+        }
     }
 }
 

@@ -323,6 +323,15 @@ impl RecordingState {
         }
     }
 
+    /// Report a recoverable stream warning without stopping the other input.
+    pub fn report_warning(&self, error: AudioError) {
+        log::warn!("Recoverable audio warning: {:?}", error);
+        *self.last_error.lock().unwrap() = Some(error.clone());
+        if let Some(callback) = self.error_callback.lock().unwrap().as_ref() {
+            callback(&error);
+        }
+    }
+
     pub fn get_error_count(&self) -> u32 {
         self.error_count.load(Ordering::SeqCst)
     }

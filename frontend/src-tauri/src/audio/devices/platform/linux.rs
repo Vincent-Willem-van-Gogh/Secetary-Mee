@@ -14,20 +14,12 @@ pub fn configure_linux_audio(host: &cpal::Host) -> Result<Vec<AudioDevice>> {
         }
     }
 
-    // Add PulseAudio monitor sources for system audio
-    if let Ok(pulse_host) = cpal::host_from_id(cpal::HostId::Alsa) {
-        for device in pulse_host.input_devices()? {
-            if let Ok(name) = device.name() {
-                // Check if it's a monitor source
-                if name.contains("monitor") {
-                    devices.push(AudioDevice::new(
-                        format!("{} (System Audio)", name),
-                        DeviceType::Output
-                    ));
-                }
-            }
-        }
-    }
+    // PulseAudio and pipewire-pulse expose the default output through this
+    // stable monitor alias, so Linux v1 does not need a routing UI.
+    devices.push(AudioDevice::new(
+        "Default System Audio".to_string(),
+        DeviceType::Output,
+    ));
 
     Ok(devices)
 }

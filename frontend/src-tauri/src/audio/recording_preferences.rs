@@ -267,46 +267,32 @@ pub async fn select_recording_folder<R: Runtime>(
 /// Get available audio capture backends for the current platform
 #[tauri::command]
 pub async fn get_available_audio_backends() -> Result<Vec<String>, String> {
-    #[cfg(target_os = "macos")]
-    {
-        let backends = crate::audio::capture::get_available_backends();
-        Ok(backends.iter().map(|b| b.to_string()).collect())
-    }
-
-    #[cfg(not(target_os = "macos"))]
-    {
-        // Only ScreenCaptureKit available on non-macOS
-        Ok(vec!["screencapturekit".to_string()])
-    }
+    let backends = crate::audio::capture::get_available_backends();
+    Ok(backends.iter().map(|b| b.to_string()).collect())
 }
 
 /// Get current audio capture backend
 #[tauri::command]
 pub async fn get_current_audio_backend() -> Result<String, String> {
-    #[cfg(target_os = "macos")]
-    {
-        let backend = crate::audio::capture::get_current_backend();
-        Ok(backend.to_string())
-    }
-
-    #[cfg(not(target_os = "macos"))]
-    {
-        Ok("screencapturekit".to_string())
-    }
+    Ok(crate::audio::capture::get_current_backend().to_string())
 }
 
 /// Set audio capture backend
 #[tauri::command]
 pub async fn set_audio_backend(backend: String) -> Result<(), String> {
+    let backend_enum = crate::audio::capture::AudioCaptureBackend::from_string(&backend)
+        .ok_or_else(|| format!("Invalid backend: {}", backend))?;
+
+    if !crate::audio::capture::get_available_backends().contains(&backend_enum) {
+        return Err(format!("Backend {} not available on this platform", backend));
+    }
+
     #[cfg(target_os = "macos")]
     {
         use crate::audio::capture::AudioCaptureBackend;
         use crate::audio::permissions::{
             check_screen_recording_permission, request_screen_recording_permission,
         };
-
-        let backend_enum = AudioCaptureBackend::from_string(&backend)
-            .ok_or_else(|| format!("Invalid backend: {}", backend))?;
 
         // If switching to Core Audio, log information about Audio Capture permission
         if backend_enum == AudioCaptureBackend::CoreAudio {
@@ -335,21 +321,11 @@ pub async fn set_audio_backend(backend: String) -> Result<(), String> {
             );
         }
 
-        info!("Setting audio backend to: {:?}", backend_enum);
-        crate::audio::capture::set_current_backend(backend_enum);
-        Ok(())
     }
 
-    #[cfg(not(target_os = "macos"))]
-    {
-        if backend != "screencapturekit" {
-            return Err(format!(
-                "Backend {} not available on this platform",
-                backend
-            ));
-        }
-        Ok(())
-    }
+    info!("Setting audio backend to: {:?}", backend_enum);
+    crate::audio::capture::set_current_backend(backend_enum);
+    Ok(())
 }
 
 /// Get backend information (name and description)
@@ -362,33 +338,12 @@ pub struct BackendInfo {
 
 #[tauri::command]
 pub async fn get_audio_backend_info() -> Result<Vec<BackendInfo>, String> {
-    #[cfg(target_os = "macos")]
-    {
-        use crate::audio::capture::AudioCaptureBackend;
-
-        let backends = vec![
-            BackendInfo {
-                id: AudioCaptureBackend::ScreenCaptureKit.to_string(),
-                name: AudioCaptureBackend::ScreenCaptureKit.name().to_string(),
-                description: AudioCaptureBackend::ScreenCaptureKit
-                    .description()
-                    .to_string(),
-            },
-            BackendInfo {
-                id: AudioCaptureBackend::CoreAudio.to_string(),
-                name: AudioCaptureBackend::CoreAudio.name().to_string(),
-                description: AudioCaptureBackend::CoreAudio.description().to_string(),
-            },
-        ];
-        Ok(backends)
-    }
-
-    #[cfg(not(target_os = "macos"))]
-    {
-        Ok(vec![BackendInfo {
-            id: "screencapturekit".to_string(),
-            name: "ScreenCaptureKit".to_string(),
-            description: "Default system audio capture".to_string(),
-        }])
-    }
+    Ok(crate::audio::capture::get_available_backends()
+        .into_iter()
+        .map(|backend| BackendInfo {
+            id: backend.to_string(),
+            name: backend.name().to_string(),
+            description: backend.description().to_string(),
+        })
+        .collect())
 }

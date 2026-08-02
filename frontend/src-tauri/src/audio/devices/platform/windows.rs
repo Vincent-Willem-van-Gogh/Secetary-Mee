@@ -1,24 +1,35 @@
 use anyhow::{anyhow, Result};
 use cpal::traits::{DeviceTrait, HostTrait};
 use log::{debug, info, warn};
+use std::collections::HashSet;
 
 use crate::audio::devices::configuration::{AudioDevice, DeviceType};
 
 /// Configure Windows audio devices using WASAPI
 pub fn configure_windows_audio(host: &cpal::Host) -> Result<Vec<AudioDevice>> {
     let mut devices = Vec::new();
+    let mut seen = HashSet::new();
 
     // Get WASAPI devices
     if let Ok(wasapi_host) = cpal::host_from_id(cpal::HostId::Wasapi) {
         debug!("Using WASAPI host for Windows audio device enumeration");
 
+        // CPAL automatically enables WASAPI loopback when an output endpoint
+        // is opened as an input stream. Keep the default endpoint first.
+        if let Some(device) = wasapi_host.default_output_device() {
+            if let Ok(name) = device.name() {
+                seen.insert((name.clone(), DeviceType::Output));
+                devices.push(AudioDevice::new(name, DeviceType::Output));
+            }
+        }
+
         // Add output devices (including loopback)
         if let Ok(output_devices) = wasapi_host.output_devices() {
             for device in output_devices {
                 if let Ok(name) = device.name() {
-                    // For Windows, we need to mark output devices specifically for loopback
-                    // info!("Found Windows output device: {}", name);
-                    devices.push(AudioDevice::new(name.clone(), DeviceType::Output));
+                    if seen.insert((name.clone(), DeviceType::Output)) {
+                        devices.push(AudioDevice::new(name, DeviceType::Output));
+                    }
                 }
             }
         } else {
@@ -29,8 +40,9 @@ pub fn configure_windows_audio(host: &cpal::Host) -> Result<Vec<AudioDevice>> {
         if let Ok(input_devices) = wasapi_host.input_devices() {
             for device in input_devices {
                 if let Ok(name) = device.name() {
-                    // info!("Found Windows input device: {}", name);
-                    devices.push(AudioDevice::new(name.clone(), DeviceType::Input));
+                    if seen.insert((name.clone(), DeviceType::Input)) {
+                        devices.push(AudioDevice::new(name, DeviceType::Input));
+                    }
                 }
             }
         } else {

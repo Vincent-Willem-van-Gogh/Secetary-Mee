@@ -12,6 +12,8 @@ use super::capture::{AudioCaptureBackend, get_current_backend};
 
 #[cfg(target_os = "macos")]
 use super::capture::CoreAudioCapture;
+#[cfg(target_os = "linux")]
+use super::capture::SystemAudioCapture;
 
 /// Stream backend implementation
 pub enum StreamBackend {
@@ -20,6 +22,10 @@ pub enum StreamBackend {
     /// Core Audio direct implementation (macOS only)
     #[cfg(target_os = "macos")]
     CoreAudio {
+        task: Option<tokio::task::JoinHandle<()>>,
+    },
+    #[cfg(target_os = "linux")]
+    PulseMonitor {
         task: Option<tokio::task::JoinHandle<()>>,
     },
 }
@@ -87,6 +93,11 @@ impl AudioStream {
             return Self::create_core_audio_stream(device, state, device_type, recording_sender).await;
         }
 
+        #[cfg(target_os = "linux")]
+        if device_type == DeviceType::System {
+            return Self::create_pulse_monitor_stream(device, state, recording_sender).await;
+        }
+
         // Default path: use CPAL
         #[cfg(target_os = "macos")]
         let backend_name = if backend_type == AudioCaptureBackend::ScreenCaptureKit {
@@ -100,6 +111,50 @@ impl AudioStream {
 
         info!("🎵 Stream: Using CPAL backend ({}) for device: {}", backend_name, device.name);
         Self::create_cpal_stream(device, state, device_type, recording_sender).await
+    }
+
+    #[cfg(target_os = "linux")]
+    async fn create_pulse_monitor_stream(
+        device: Arc<AudioDevice>,
+        state: Arc<RecordingState>,
+        recording_sender: Option<mpsc::UnboundedSender<super::recording_state::AudioChunk>>,
+    ) -> Result<Self> {
+        let mut stream = SystemAudioCapture::new()?.start_system_audio_capture()?;
+        let state_for_warning = state.clone();
+        let capture = AudioCapture::new(
+            device.clone(),
+            state,
+            stream.sample_rate(),
+            2,
+            DeviceType::System,
+            recording_sender,
+        );
+
+        let task = tokio::spawn(async move {
+            use futures_util::StreamExt;
+
+            let mut buffer = Vec::with_capacity(1_920);
+            while let Some(sample) = stream.next().await {
+                buffer.push(sample);
+                if buffer.len() >= 1_920 {
+                    capture.process_audio_data(&buffer);
+                    buffer.clear();
+                }
+            }
+            if !buffer.is_empty() {
+                capture.process_audio_data(&buffer);
+            }
+            if state_for_warning.is_recording() {
+                state_for_warning.report_warning(
+                    super::recording_state::AudioError::StreamFailed,
+                );
+            }
+        });
+
+        Ok(Self {
+            device,
+            backend: StreamBackend::PulseMonitor { task: Some(task) },
+        })
     }
 
     /// Create a CPAL-based stream (ScreenCaptureKit on macOS)
@@ -343,6 +398,12 @@ impl AudioStream {
                     info!("Core Audio task aborted");
                 }
             }
+            #[cfg(target_os = "linux")]
+            StreamBackend::PulseMonitor { task } => {
+                if let Some(task) = task {
+                    task.abort();
+                }
+            }
         }
 
         // Explicitly drop self.device Arc reference
@@ -410,8 +471,11 @@ impl AudioStreamManager {
                     info!("✅ System audio stream created with {:?} backend", backend);
                 }
                 Err(e) => {
-                    warn!("⚠️ Failed to create system audio stream: {}", e);
-                    // Don't fail if only system audio fails
+                    error!("❌ Failed to create system audio stream: {}", e);
+                    if let Some(mic_stream) = self.microphone_stream.take() {
+                        let _ = mic_stream.stop();
+                    }
+                    return Err(anyhow::anyhow!("System audio capture failed: {e}"));
                 }
             }
         } else {

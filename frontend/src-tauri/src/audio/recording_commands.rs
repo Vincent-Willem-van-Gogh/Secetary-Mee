@@ -172,7 +172,7 @@ pub async fn start_recording_with_meeting_name<R: Runtime>(
     };
 
     // ============================================================================
-    // SYSTEM AUDIO DEVICE RESOLUTION: Preference → Default → None (optional)
+    // SYSTEM AUDIO DEVICE RESOLUTION: Preference → Default → Error
     // ============================================================================
     let system_device = match preferred_system_name {
         Some(pref_name) => {
@@ -190,11 +190,10 @@ pub async fn start_recording_with_meeting_name<R: Runtime>(
                             info!("✅ Using default system audio: '{}'", device.name);
                             Some(Arc::new(device))
                         }
-                        Err(default_err) => {
-                            warn!("⚠️ No system audio available (preferred and default both failed): {}", default_err);
-                            warn!("   Recording will continue with microphone only");
-                            None // System audio is optional
-                        }
+                        Err(default_err) => return Err(format!(
+                            "System audio device unavailable. Preferred device '{}' failed, and no default output is available: {}",
+                            pref_name, default_err
+                        )),
                     }
                 }
             }
@@ -206,11 +205,7 @@ pub async fn start_recording_with_meeting_name<R: Runtime>(
                     info!("✅ Using default system audio: '{}'", device.name);
                     Some(Arc::new(device))
                 }
-                Err(e) => {
-                    warn!("⚠️ No default system audio available: {}", e);
-                    warn!("   Recording will continue with microphone only");
-                    None // System audio is optional
-                }
+                Err(e) => return Err(format!("System audio device unavailable: {}", e)),
             }
         }
     };
@@ -354,21 +349,25 @@ pub async fn start_recording_with_devices_and_meeting<R: Runtime>(
     }
     info!("✅ Transcription model validation passed");
 
-    // Parse devices
-    let mic_device = if let Some(ref name) = mic_device_name {
-        Some(Arc::new(parse_audio_device(name).map_err(|e| {
+    // `null` means the platform default; explicit `none` requests microphone-only recording.
+    let mic_device = match mic_device_name.as_deref() {
+        Some("none") => None,
+        Some(name) => Some(Arc::new(parse_audio_device(name).map_err(|e| {
             format!("Invalid microphone device '{}': {}", name, e)
-        })?))
-    } else {
-        None
+        })?)),
+        None => Some(Arc::new(default_input_device().map_err(|e| {
+            format!("No default microphone device available: {}", e)
+        })?)),
     };
 
-    let system_device = if let Some(ref name) = system_device_name {
-        Some(Arc::new(parse_audio_device(name).map_err(|e| {
+    let system_device = match system_device_name.as_deref() {
+        Some("none") => None,
+        Some(name) => Some(Arc::new(parse_audio_device(name).map_err(|e| {
             format!("Invalid system device '{}': {}", name, e)
-        })?))
-    } else {
-        None
+        })?)),
+        None => Some(Arc::new(default_output_device().map_err(|e| {
+            format!("No default system audio device available: {}", e)
+        })?)),
     };
 
     // Async-first approach for custom devices - no more blocking operations!

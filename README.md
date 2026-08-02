@@ -21,7 +21,7 @@ Secretary Mee is a local-first desktop meeting assistant for recording, real-tim
 
 ## Build from source
 
-Requirements: Node.js, pnpm, Rust, CMake, and the platform's native build tools.
+Requirements: Node.js 22, pnpm 11, stable Rust, CMake, and the platform's native build tools. Linux additionally needs the WebKitGTK, ALSA, and PulseAudio development packages used by Tauri and system-audio capture.
 
 ```bash
 cd frontend
@@ -31,6 +31,22 @@ pnpm tauri build --bundles app -- --features metal
 ```
 
 The macOS application is generated under `target/release/bundle/macos/Secretary Mee.app`.
+
+Windows x64 uses WASAPI Loopback and Linux x64 uses the PulseAudio default monitor (also provided by `pipewire-pulse`). CPU prerelease packages are built on their native GitHub runners:
+
+```bash
+# Windows
+cd frontend
+pnpm tauri build --bundles nsis --target x86_64-pc-windows-msvc
+
+# Ubuntu
+sudo apt-get install libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev \
+  patchelf libasound2-dev libpulse-dev libclang-dev
+cd frontend
+pnpm tauri build --bundles appimage --target x86_64-unknown-linux-gnu
+```
+
+Models are downloaded after first launch and are not included in installers. The `Windows and Linux prerelease` GitHub Actions workflow builds both helpers and FFmpeg, verifies the packaged sidecars, generates `SHA256SUMS`, and publishes the unsigned prerelease artifacts.
 
 ## Development
 

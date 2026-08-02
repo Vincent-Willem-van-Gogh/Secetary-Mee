@@ -1,0 +1,102 @@
+name: Cross-platform CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  frontend:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.9.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+        working-directory: frontend
+      - run: pnpm test:i18n
+        working-directory: frontend
+      - run: pnpm build
+        working-directory: frontend
+
+  native:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            target: aarch64-apple-darwin
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Linux desktop and audio libraries
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libasound2-dev libpulse-dev libclang-dev
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build Sherpa helper
+        run: cargo build --release -p sherpa-helper --target ${{ matrix.target }}
+      - name: Build llama helper (macOS Metal)
+        if: runner.os == 'macOS'
+        run: cargo build --release -p llama-helper --features metal --target ${{ matrix.target }}
+      - name: Build llama helper (CPU)
+        if: runner.os != 'macOS'
+        run: cargo build --release -p llama-helper --target ${{ matrix.target }}
+
+      - name: Prepare real Tauri sidecars
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p frontend/src-tauri/binaries
+          EXE=""
+          if [ "${{ runner.os }}" = "Windows" ]; then EXE=".exe"; fi
+          cp "target/${{ matrix.target }}/release/sherpa-helper${EXE}" "frontend/src-tauri/binaries/sherpa-helper-${{ matrix.target }}${EXE}"
+          cp "target/${{ matrix.target }}/release/llama-helper${EXE}" "frontend/src-tauri/binaries/llama-helper-${{ matrix.target }}${EXE}"
+          test "$(wc -c < "frontend/src-tauri/binaries/sherpa-helper-${{ matrix.target }}${EXE}")" -gt 100000
+          test "$(wc -c < "frontend/src-tauri/binaries/llama-helper-${{ matrix.target }}${EXE}")" -gt 100000
+          if cmp -s "frontend/src-tauri/binaries/sherpa-helper-${{ matrix.target }}${EXE}" "frontend/src-tauri/binaries/llama-helper-${{ matrix.target }}${EXE}"; then
+            echo "Sherpa and llama helpers must be different binaries" >&2
+            exit 1
+          fi
+
+      - name: Test Rust workspace
+        run: cargo test --workspace --target ${{ matrix.target }}
+      - name: Compile Tauri backend
+        run: cargo check -p meetily --target ${{ matrix.target }}
+
+      - uses: actions/cache@v4
+        with:
+          path: .ci-sherpa-model
+          key: sherpa-zipformer-en-2023-06-26-v1
+      - name: Download verified Sherpa smoke-test model
+        if: hashFiles('.ci-sherpa-model/**/encoder-epoch-99-avg-1-chunk-16-left-128.int8.onnx') == ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .ci-sherpa-model
+          curl -L --fail --retry 3 -o .ci-sherpa-model/model.tar.bz2 https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-2023-06-26.tar.bz2
+          echo "639e25b578e9e997131402199419c13a941f8e4e198e2da1ce57dbf5cf401282  .ci-sherpa-model/model.tar.bz2" | sha256sum -c - 2>/dev/null || echo "639e25b578e9e997131402199419c13a941f8e4e198e2da1ce57dbf5cf401282  .ci-sherpa-model/model.tar.bz2" | shasum -a 256 -c -
+          tar -xjf .ci-sherpa-model/model.tar.bz2 -C .ci-sherpa-model
+          rm .ci-sherpa-model/model.tar.bz2
+      - name: Recognize fixed speech sample
+        shell: bash
+        run: |
+          set -euo pipefail
+          MODEL_DIR="$(find .ci-sherpa-model -name encoder-epoch-99-avg-1-chunk-16-left-128.int8.onnx -exec dirname {} \; | head -1)"
+          WAV="$(find .ci-sherpa-model -path '*/test_wavs/*.wav' | head -1)"
+          test -n "$MODEL_DIR"
+          test -n "$WAV"
+          "target/${{ matrix.target }}/release/sherpa-helper${{ runner.os == 'Windows' && '.exe' || '' }}" --smoke-test "$MODEL_DIR" "$WAV"

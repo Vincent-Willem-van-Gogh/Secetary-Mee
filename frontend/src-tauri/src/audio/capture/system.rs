@@ -5,7 +5,7 @@ use anyhow::Result;
 use cpal::traits::{DeviceTrait, HostTrait};
 
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 use futures_channel::mpsc;
 #[cfg(target_os = "macos")]
 use super::core_audio::CoreAudioCapture;
@@ -24,6 +24,11 @@ impl SystemAudioCapture {
     }
 
     pub fn list_system_devices() -> Result<Vec<String>> {
+        #[cfg(target_os = "linux")]
+        return Ok(vec!["Default System Audio".to_string()]);
+
+        #[cfg(not(target_os = "linux"))]
+        {
         let host = cpal::default_host();
         let devices = host.output_devices()
             .map_err(|e| anyhow::anyhow!("Failed to enumerate output devices: {}", e))?;
@@ -36,6 +41,7 @@ impl SystemAudioCapture {
         }
 
         Ok(device_names)
+        }
     }
 
     pub fn start_system_audio_capture(&self) -> Result<SystemAudioStream> {
@@ -96,10 +102,87 @@ impl SystemAudioCapture {
             })
         }
 
-        #[cfg(not(target_os = "macos"))]
+        #[cfg(target_os = "linux")]
         {
-            // For non-macOS platforms, you would implement WASAPI/ALSA loopback here
-            anyhow::bail!("System audio capture not yet implemented for this platform")
+            use libpulse_binding::{sample, stream::Direction};
+            use libpulse_simple_binding::Simple;
+
+            let (mut tx, rx) = mpsc::channel::<Vec<f32>>(8);
+            let (drop_tx, drop_rx) = std::sync::mpsc::channel::<()>();
+            let (ready_tx, ready_rx) = std::sync::mpsc::sync_channel(1);
+
+            std::thread::Builder::new()
+                .name("pulse-monitor-capture".to_string())
+                .spawn(move || {
+                    let spec = sample::Spec {
+                        format: sample::Format::FLOAT32NE,
+                        channels: 2,
+                        rate: 48_000,
+                    };
+
+                    let simple = match Simple::new(
+                        None,
+                        "Secretary Mee",
+                        Direction::Record,
+                        Some("@DEFAULT_MONITOR@"),
+                        "System Audio",
+                        &spec,
+                        None,
+                        None,
+                    ) {
+                        Ok(simple) => {
+                            let _ = ready_tx.send(Ok::<(), String>(()));
+                            simple
+                        }
+                        Err(error) => {
+                            let _ = ready_tx.send(Err(format!(
+                                "Unable to connect to PulseAudio default monitor: {error}"
+                            )));
+                            return;
+                        }
+                    };
+
+                    // 20 ms of 48 kHz stereo float audio keeps stop latency bounded.
+                    let mut bytes = vec![0_u8; 48_000 * 2 * 4 / 50];
+                    loop {
+                        if drop_rx.try_recv().is_ok() {
+                            break;
+                        }
+                        if let Err(error) = simple.read(&mut bytes) {
+                            log::error!("PulseAudio monitor read failed: {error}");
+                            break;
+                        }
+
+                        let samples = bytes
+                            .chunks_exact(4)
+                            .map(|sample| f32::from_ne_bytes(sample.try_into().unwrap()))
+                            .collect();
+                        if let Err(error) = tx.try_send(samples) {
+                            if error.is_disconnected() {
+                                break;
+                            }
+                            log::warn!("PulseAudio monitor queue full; dropping one system-audio frame");
+                        }
+                    }
+                })
+                .map_err(|error| anyhow::anyhow!("Failed to start PulseAudio capture thread: {error}"))?;
+
+            ready_rx
+                .recv_timeout(std::time::Duration::from_secs(5))
+                .map_err(|_| anyhow::anyhow!("Timed out connecting to PulseAudio default monitor"))?
+                .map_err(anyhow::Error::msg)?;
+
+            let receiver = rx.map(futures_util::stream::iter).flatten();
+            Ok(SystemAudioStream {
+                drop_tx,
+                sample_rate: 48_000,
+                receiver: Box::pin(receiver),
+            })
+        }
+
+        #[cfg(target_os = "windows")]
+        {
+            anyhow::bail!("Use the selected WASAPI output endpoint for loopback capture")
         }
     }
 

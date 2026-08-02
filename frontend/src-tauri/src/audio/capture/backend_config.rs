@@ -16,6 +16,12 @@ pub enum AudioCaptureBackend {
     /// Uses direct Core Audio API with aggregate device + tap
     #[cfg(target_os = "macos")]
     CoreAudio,
+
+    #[cfg(target_os = "windows")]
+    WasapiLoopback,
+
+    #[cfg(target_os = "linux")]
+    PulseMonitor,
 }
 
 impl AudioCaptureBackend {
@@ -25,6 +31,10 @@ impl AudioCaptureBackend {
             AudioCaptureBackend::ScreenCaptureKit => "ScreenCaptureKit",
             #[cfg(target_os = "macos")]
             AudioCaptureBackend::CoreAudio => "Core Audio",
+            #[cfg(target_os = "windows")]
+            AudioCaptureBackend::WasapiLoopback => "WASAPI Loopback",
+            #[cfg(target_os = "linux")]
+            AudioCaptureBackend::PulseMonitor => "PulseAudio Monitor",
         }
     }
 
@@ -38,6 +48,14 @@ impl AudioCaptureBackend {
             AudioCaptureBackend::CoreAudio => {
                 "Direct Core Audio API - Lower latency, more control over audio pipeline"
             }
+            #[cfg(target_os = "windows")]
+            AudioCaptureBackend::WasapiLoopback => {
+                "Captures the selected Windows output device through WASAPI shared-mode loopback"
+            }
+            #[cfg(target_os = "linux")]
+            AudioCaptureBackend::PulseMonitor => {
+                "Captures the default system output through PulseAudio or pipewire-pulse"
+            }
         }
     }
 
@@ -47,6 +65,10 @@ impl AudioCaptureBackend {
             "screencapturekit" => Some(AudioCaptureBackend::ScreenCaptureKit),
             #[cfg(target_os = "macos")]
             "coreaudio" | "core_audio" => Some(AudioCaptureBackend::CoreAudio),
+            #[cfg(target_os = "windows")]
+            "wasapi-loopback" | "wasapi_loopback" => Some(AudioCaptureBackend::WasapiLoopback),
+            #[cfg(target_os = "linux")]
+            "pulse-monitor" | "pulse_monitor" => Some(AudioCaptureBackend::PulseMonitor),
             _ => None,
         }
     }
@@ -57,6 +79,10 @@ impl AudioCaptureBackend {
             AudioCaptureBackend::ScreenCaptureKit => "screencapturekit".to_string(),
             #[cfg(target_os = "macos")]
             AudioCaptureBackend::CoreAudio => "coreaudio".to_string(),
+            #[cfg(target_os = "windows")]
+            AudioCaptureBackend::WasapiLoopback => "wasapi-loopback".to_string(),
+            #[cfg(target_os = "linux")]
+            AudioCaptureBackend::PulseMonitor => "pulse-monitor".to_string(),
         }
     }
 
@@ -67,9 +93,14 @@ impl AudioCaptureBackend {
             vec![AudioCaptureBackend::ScreenCaptureKit, AudioCaptureBackend::CoreAudio]
         }
 
-        #[cfg(not(target_os = "macos"))]
+        #[cfg(target_os = "windows")]
         {
-            vec![AudioCaptureBackend::ScreenCaptureKit]
+            vec![AudioCaptureBackend::WasapiLoopback]
+        }
+
+        #[cfg(target_os = "linux")]
+        {
+            vec![AudioCaptureBackend::PulseMonitor]
         }
     }
 
@@ -78,8 +109,11 @@ impl AudioCaptureBackend {
         #[cfg(target_os = "macos")]
         return AudioCaptureBackend::CoreAudio;
 
-        #[cfg(not(target_os = "macos"))]
-        return AudioCaptureBackend::ScreenCaptureKit;
+        #[cfg(target_os = "windows")]
+        return AudioCaptureBackend::WasapiLoopback;
+
+        #[cfg(target_os = "linux")]
+        return AudioCaptureBackend::PulseMonitor;
     }
 }
 
@@ -182,10 +216,12 @@ mod tests {
     #[test]
     fn test_available_backends() {
         let backends = AudioCaptureBackend::available_backends();
-        assert!(backends.contains(&AudioCaptureBackend::ScreenCaptureKit));
-
         #[cfg(target_os = "macos")]
-        assert!(backends.contains(&AudioCaptureBackend::CoreAudio));
+        assert_eq!(backends, vec![AudioCaptureBackend::ScreenCaptureKit, AudioCaptureBackend::CoreAudio]);
+        #[cfg(target_os = "windows")]
+        assert_eq!(backends, vec![AudioCaptureBackend::WasapiLoopback]);
+        #[cfg(target_os = "linux")]
+        assert_eq!(backends, vec![AudioCaptureBackend::PulseMonitor]);
     }
 
     #[test]
@@ -193,8 +229,11 @@ mod tests {
         #[cfg(target_os = "macos")]
         assert_eq!(AudioCaptureBackend::default(), AudioCaptureBackend::CoreAudio);
 
-        #[cfg(not(target_os = "macos"))]
-        assert_eq!(AudioCaptureBackend::default(), AudioCaptureBackend::ScreenCaptureKit);
+        #[cfg(target_os = "windows")]
+        assert_eq!(AudioCaptureBackend::default(), AudioCaptureBackend::WasapiLoopback);
+
+        #[cfg(target_os = "linux")]
+        assert_eq!(AudioCaptureBackend::default(), AudioCaptureBackend::PulseMonitor);
     }
 
     #[test]
@@ -205,8 +244,7 @@ mod tests {
         #[cfg(target_os = "macos")]
         assert_eq!(config.get(), AudioCaptureBackend::CoreAudio);
 
-        #[cfg(not(target_os = "macos"))]
-        assert_eq!(config.get(), AudioCaptureBackend::ScreenCaptureKit);
+        assert_eq!(config.get(), AudioCaptureBackend::default());
 
         #[cfg(target_os = "macos")]
         {
@@ -220,7 +258,6 @@ mod tests {
         #[cfg(target_os = "macos")]
         assert_eq!(config.get(), AudioCaptureBackend::CoreAudio);
 
-        #[cfg(not(target_os = "macos"))]
-        assert_eq!(config.get(), AudioCaptureBackend::ScreenCaptureKit);
+        assert_eq!(config.get(), AudioCaptureBackend::default());
     }
 }

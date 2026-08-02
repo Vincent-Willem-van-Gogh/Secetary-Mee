@@ -1,7 +1,7 @@
 {
     "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
     "productName": "Secretary Mee",
-    "version": "1.0.0",
+    "version": "1.1.0-rc.1",
     "identifier": "com.meetily.ai",
     "build": {
         "frontendDist": "../out",
@@ -77,14 +77,7 @@
     },
     "bundle": {
         "active": true,
-        "targets": [
-            "deb",
-            "appimage",
-            "msi",
-            "nsis",
-            "app",
-            "dmg"
-        ],
+        "targets": ["nsis", "appimage", "app"],
         "icon": [
             "icons/icon.png",
             "icons/icon.icns",

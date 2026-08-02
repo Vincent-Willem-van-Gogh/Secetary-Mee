@@ -1,0 +1,122 @@
+name: Windows and Linux prerelease
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Prerelease tag
+        required: true
+        default: v1.1.0-rc.1
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            bundle: nsis
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            bundle: appimage
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Linux desktop and audio libraries
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libasound2-dev libpulse-dev libclang-dev
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.9.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+      - run: pnpm install --frozen-lockfile
+        working-directory: frontend
+      - run: pnpm test:i18n
+        working-directory: frontend
+      - run: pnpm build
+        working-directory: frontend
+
+      - name: Build CPU helpers
+        run: cargo build --release -p sherpa-helper -p llama-helper --target ${{ matrix.target }}
+      - name: Prepare and verify real sidecars
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p frontend/src-tauri/binaries
+          EXE=""
+          if [ "${{ runner.os }}" = "Windows" ]; then EXE=".exe"; fi
+          for HELPER in sherpa-helper llama-helper; do
+            cp "target/${{ matrix.target }}/release/${HELPER}${EXE}" "frontend/src-tauri/binaries/${HELPER}-${{ matrix.target }}${EXE}"
+            test "$(wc -c < "frontend/src-tauri/binaries/${HELPER}-${{ matrix.target }}${EXE}")" -gt 100000
+          done
+          if cmp -s "frontend/src-tauri/binaries/sherpa-helper-${{ matrix.target }}${EXE}" "frontend/src-tauri/binaries/llama-helper-${{ matrix.target }}${EXE}"; then exit 1; fi
+
+      - name: Build unsigned package
+        working-directory: frontend
+        env:
+          WINDOWS_SIGNING_SKIPPED: "true"
+        run: pnpm tauri build --bundles ${{ matrix.bundle }} --target ${{ matrix.target }}
+
+      - name: Collect package and verify bundled executables
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            PACKAGE="$(find target/${{ matrix.target }}/release/bundle/nsis -name '*-setup.exe' -o -name '*_x64-setup.exe' | head -1)"
+            test -n "$PACKAGE"
+            7z x -y "$PACKAGE" -odist-extracted >/dev/null
+            find dist-extracted -type f | grep sherpa-helper
+            find dist-extracted -type f | grep llama-helper
+            find dist-extracted -type f | grep ffmpeg
+          else
+            PACKAGE="$(find target/${{ matrix.target }}/release/bundle/appimage -name '*.AppImage' | head -1)"
+            chmod +x "$PACKAGE"
+            "$PACKAGE" --appimage-extract >/dev/null
+            find squashfs-root -type f \( -name 'sherpa-helper' -o -name 'llama-helper' -o -name 'ffmpeg' \) | grep sherpa-helper
+            find squashfs-root -type f \( -name 'sherpa-helper' -o -name 'llama-helper' -o -name 'ffmpeg' \) | grep llama-helper
+            find squashfs-root -type f \( -name 'sherpa-helper' -o -name 'llama-helper' -o -name 'ffmpeg' \) | grep ffmpeg
+          fi
+          test -n "$PACKAGE"
+          cp "$PACKAGE" dist/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: secretary-mee-${{ matrix.bundle }}
+          path: dist/*
+          if-no-files-found: error
+
+  publish:
+    needs: package
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: secretary-mee-*
+          path: dist
+          merge-multiple: true
+      - name: Generate checksums
+        working-directory: dist
+        run: sha256sum * > SHA256SUMS
+      - name: Create GitHub prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          gh release create "$TAG" dist/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --prerelease \
+            --title "Secretary Mee $TAG" \
+            --notes "Unsigned Windows x64 CPU NSIS and Ubuntu x64 CPU AppImage prerelease. Windows may show a SmartScreen warning. Models download after first launch. Tested automatically; Windows 10/11 and Ubuntu 22.04/24.04 recording acceptance remains required before stable release."

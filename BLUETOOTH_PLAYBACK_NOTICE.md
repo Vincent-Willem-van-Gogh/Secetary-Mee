@@ -252,4 +252,4 @@ From [Apple Technical Note TN2321](https://developer.apple.com/library/archive/t
 ---
 
 **Last Updated**: August 10, 2026
-**Applies To**: Secretary Mee v1.0.0+ on macOS
+**Applies To**: Secretary Mee v1.1.0-rc.1+ on macOS

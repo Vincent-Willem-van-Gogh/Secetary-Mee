@@ -27,7 +27,9 @@ pub async fn list_audio_devices() -> Result<Vec<AudioDevice>> {
         }
     };
 
-    // Add any additional devices from the default host
+    // ScreenCaptureKit/CoreAudio can expose extra macOS devices outside the
+    // platform-specific list. Windows and Linux lists are intentionally exact.
+    #[cfg(target_os = "macos")]
     if let Ok(other_devices) = host.devices() {
         for device in other_devices {
             if let Ok(name) = device.name() {

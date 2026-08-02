@@ -123,7 +123,15 @@ impl RecordingManager {
 
         // Start audio streams - they send RAW unmixed chunks to pipeline for mixing
         // Pipeline handles mixing and distribution to both recording and transcription
-        self.stream_manager.start_streams(microphone_device.clone(), system_device.clone(), None).await?;
+        if let Err(error) = self
+            .stream_manager
+            .start_streams(microphone_device.clone(), system_device.clone(), None)
+            .await
+        {
+            self.state.stop_recording();
+            let _ = self.pipeline_manager.stop().await;
+            return Err(error);
+        }
 
         // Start device monitoring to detect disconnects
         if let Some(ref mut monitor) = self.device_monitor {

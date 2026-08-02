@@ -126,7 +126,7 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
       } else if (errorMsg.includes('system audio') || errorMsg.includes('speaker') || errorMsg.includes('output')) {
         setDeviceError({
           title: t('System Audio Not Available'),
-          message: t('Unable to capture system audio. Please check that:\n• A virtual audio device (like BlackHole) is installed\n• The app has screen recording permissions (macOS)\n• System audio is properly configured'),
+          message: t('Unable to capture system audio. Check the selected output device and system permissions, or choose Microphone Only.'),
         });
       } else if (errorMsg.includes('permission')) {
         setDeviceError({
