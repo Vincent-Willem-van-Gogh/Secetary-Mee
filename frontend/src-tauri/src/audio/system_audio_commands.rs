@@ -115,6 +115,10 @@ mod tests {
     use super::*;
 
     #[tokio::test]
+    #[cfg_attr(
+        target_os = "windows",
+        ignore = "requires a real Windows audio endpoint; GitHub runners are headless"
+    )]
     async fn test_list_system_audio_devices() {
         let devices = list_system_audio_devices_command().await;
         match devices {
@@ -130,6 +134,10 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg_attr(
+        target_os = "windows",
+        ignore = "requires a real Windows audio endpoint; GitHub runners are headless"
+    )]
     async fn test_check_permissions() {
         let has_permission = check_system_audio_permissions_command().await;
         println!("Has system audio permissions: {}", has_permission);
